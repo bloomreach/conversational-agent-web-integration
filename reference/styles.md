@@ -2,16 +2,23 @@
 
 CSS class hierarchies and CSS variables for the Clarity chat widget and its trigger templates.
 
+> **Give every override more weight than the built-in rule.** The widget and the triggers add their styles to the
+> page after your stylesheets, so a rule that only names a class from this page loses. Put a selector in front of
+> the class, for example `#cocoaas_chat_wrapper` for the widget's classes; the menus, the PDF viewer, the triggers
+> and the side panel need others, see
+> [Style the widget](../guides/02-style-the-widget.md#23-write-overrides-that-win).
+
 **Related docs:**
 - [`widget-config.md`](./widget-config.md) — `window.CLARITY_CONFIG` fields that the `--clarity-widget-*` CSS variables map to
 - [`weblayer-config.md`](./weblayer-config.md) — trigger template configuration; `--cui-param-*` / `--cui-sg-*` variables are set from these params
-- [Customize components](../guides/02-customize-components.md) — component slot overrides (MiniPDP, ProductCard)
+- [Customize components](../guides/03-customize-components.md) — component slot overrides (MiniPDP, ProductCard, ProductCarousel)
+- [Style the widget](../guides/02-style-the-widget.md) — annotated screenshots of the main classes, and how to write overrides that win over the widget's styles
 
 ---
 
 ## Widget Class Hierarchy
 
-All widget classes use the `clarity-` prefix. The widget renders inside a shadow DOM:
+Widget classes use the `clarity-` prefix. The widget renders into the page's regular DOM (no shadow root), so page selectors can match widget elements; inherited properties are reset on `root_inside_shadow` (`all: initial`), so nothing flows into the widget from the page unless a selector targets it; the trigger templates and the side-panel tree have no such reset. Only the classes listed on this page are part of the contract: elements can carry further classes, among them older `clarity_` (underscore) ones, and those can change or disappear in any release.
 
 ```
 #cocoaas_chat_wrapper
@@ -19,12 +26,14 @@ All widget classes use the `clarity-` prefix. The widget renders inside a shadow
         └── clarity-remount-app-wrapper
               └── clarity-content
                     ├── clarity-minimized
+                    ├── clarity-mobile-pdp-backdrop (conditional, see clarity-resizable-chat-wrapper)
                     ├── clarity-resizable-chat-wrapper
                     │     └── clarity-paypal-widget (+ clarity-paypal-widget-idle while no checkout is open)
                     └── clarity-survey-feedback
 
 document.body
-  └── clarity-keyboard-filler   (portalled outside the shadow tree — see below)
+  ├── clarity-menu-dropdown  (the header menu and the product card's menu, see the Portal note under clarity-header)
+  └── clarity-pdf-backdrop   (the PDF viewer, portalled outside #cocoaas_chat_wrapper, see clarity-pdf-backdrop)
 ```
 
 ### clarity-paypal-widget
@@ -34,27 +43,6 @@ Rendered inside `clarity-resizable-chat-wrapper` for as long as the chat is open
 * clarity-paypal-container — mount point for the PayPal SDK payment widget (`#clarity-paypal-container`)
 
 When the SDK or the token fetch fails the overlay closes and the chat shows the `checkoutFailed` text in `clarity-feedback-thank` with the `clarity-feedback-thank--error` modifier.
-
-### clarity-keyboard-filler
-
-Rendered by the `MobileKeyboardFiller` component and portalled directly onto `document.body` (not a
-descendant of `clarity-content`), only while the widget is in mobile-fixed-position mode and open. It
-is `position: absolute` — not `fixed` — because on iOS, `position: fixed` content is promoted to its
-own compositor layer that never gets repainted into the area the on-screen keyboard newly exposes, so
-a fixed-position cover can never actually appear there; plain absolutely-positioned content (part of
-the normal scrolling layer) does. Its geometry doesn't try to detect the keyboard at all: `top` is
-`anchorRef.getBoundingClientRect().bottom + window.scrollY` and `height` is
-`document.documentElement.clientHeight - anchorRect.bottom`, re-measured (batched with
-`requestAnimationFrame`) on `visualViewport` resize/scroll and `window` scroll — whatever gap opens up
-between the widget's bottom edge and the layout viewport's bottom, for any reason (keyboard, browser
-chrome, mid-animation frame), gets covered. `top + height` always reduces to
-`window.scrollY + document.documentElement.clientHeight`, so the filler can never grow the page's
-scrollable area past the current viewport bottom no matter how many times it recomputes. It is one
-z-index below the widget (`calc(var(--clarity-widget-z-index) - 1)`) and has `pointer-events: none`. It
-is painted in `var(--clarity-widget-bg)` and covers the gap that opens below the widget (e.g. for the
-on-screen keyboard), so the page never bleeds through instead of the widget's own background.
-
-_(no children)_
 
 ### clarity-survey-feedback
 
@@ -114,32 +102,39 @@ Modifiers: clarity-mobile, clarity-mobile-pdp, clarity-full-mode, clarity-parent
 * clarity-resizable-chat-wrapper-container
   * clarity-chat-wrapper
 
+Before it, with the `mobile_pdp` template or with `showBackdrop`: clarity-mobile-pdp-backdrop (+ clarity-mobile-pdp-backdrop-show while the chat is open), the dimmed page behind the open chat.
+
 ### clarity-chat-wrapper
 
 * clarity-mini-pdp--outside-container
-  * clarity-mini-pdp
+  * clarity-mini-pdp, or clarity-mini-pdp-wrapper clarity-mount-wrapper when `MiniPDP` is overridden (see [Customize components](../guides/03-customize-components.md))
+* clarity-live-chat-container (after the mini PDP container; only while the live audio/video panel is open and the mini PDP location is outside)
 * clarity-chat-container
   * clarity-resize-handle
     * clarity-resize-handle-indicator
-  * clarity-top-notice-host (the short notice under the header: feedback thanks, checkout result)
-    * clarity-feedback-thank (+ clarity-feedback-thank--error modifier)
-      * clarity-check-filled-icon or clarity-error-icon
-      * clarity-feedback-thank-text
   * clarity-chat-pdp-questions
     * clarity-chat-pdp-questions-banner
       * clarity-chat-pdp-questions-banner-image-container
       * clarity-chat-pdp-questions-banner-text
     * clarity-chat-pdp-questions-buttons
       * clarity-chat-pdp-questions-button-text
+  * clarity-header
+  * clarity-top-notice-host (the short notice under the header: feedback thanks, checkout result)
+    * clarity-feedback-thank (+ clarity-feedback-thank--error modifier)
+      * clarity-check-filled-icon or clarity-error-icon
+      * clarity-feedback-thank-text
+  * clarity-mobile-pdp-backdrop (+ clarity-mobile-pdp-backdrop-show; only with `mobileMiniPDPOverlay`, behind the overlay below)
   * clarity-mini-pdp--inside-container (+ clarity-mini-pdp--inside-container-overlay modifier)
-    * clarity-mini-pdp
+    * clarity-resize-handle (with `mobileMiniPDPOverlay`)
+    * clarity-mini-pdp, or clarity-mini-pdp-wrapper clarity-mount-wrapper when `MiniPDP` is overridden
     * clarity-mini-pdp--inside-input-container
       * clarity-input
+  * clarity-live-chat-container (instead of clarity-chat while the live audio/video panel is open and the mini PDP location is inside)
   * clarity-chat
 
 ### clarity-mini-pdp
 
-> **Global styles** — Default styles for `clarity-mini-pdp` are injected as a global style block rooted at `.root_inside_shadow .clarity-mini-pdp`, so these rules are scoped inside the shadow DOM but are **not** component-scoped — they can be overridden by other global styles targeting the same classes without needing `!important`. Notably, `.clarity-mini-pdp-dimensions-option` has `padding: 4px 8px` (no `!important`), so custom styles can override it at equal specificity.
+> **Global styles** — Default styles for `clarity-mini-pdp` are injected as a global style block rooted at `.root_inside_shadow .clarity-mini-pdp`, so these rules are scoped to the widget but are **not** component-scoped, and none uses `!important` (e.g. `.clarity-mini-pdp-dimensions-option` has `padding: 4px 8px`). The widget adds the block after your stylesheets, so a rule of equal specificity loses; prefix yours with `#cocoaas_chat_wrapper`, see [Style the widget](../guides/02-style-the-widget.md#23-write-overrides-that-win).
 
 Modifier: clarity-mini-pdp--inside
 
@@ -178,7 +173,7 @@ Modifier: clarity-mini-pdp--inside
       * clarity-mini-pdp-variant-selector-option (+ active modifier; circular variant image)
   * clarity-mini-pdp-buy-now (+ clarity-mini-pdp-buy-now-${state} modifier: idle / processing / done / failed) — when `enableCheckOut` is on; replaces the add-to-cart button below — PayPal-branded blue pill
     * clarity-paypal-logo / clarity-spinner-icon / clarity-check-icon / clarity-error-icon (by state) + "Buy Now" label span
-  * clarity-mini-pdp-atc (+ clarity-mini-pdp-atc-${state} modifier: idle / adding / added / failed) — when `enableCheckOut` is off
+  * clarity-button clarity-button--primary clarity-mini-pdp-atc (+ clarity-mini-pdp-atc-${state} modifier: idle / adding / added / failed) — when `enableCheckOut` is off
     * clarity-cart-icon / clarity-spinner-icon / clarity-check-icon / clarity-error-icon (by state)
   * clarity-mini-pdp-pdp-link-button clarity-mini-pdp-header-button clarity-mini-pdp-go-to-pdp (go to product page button; shown here only when `moveGoToPDPButton` is on)
     * clarity-link-icon
@@ -225,45 +220,43 @@ Modifier: clarity-mini-pdp--inside
         * clarity-header-name
         * clarity-header-description
     * clarity-header-actions
-      * clarity-header-action (reset button)
+      * clarity-header-avatar-wrapper clarity-header-action (reset button)
         * clarity-refresh-icon
-      * clarity-header-action (expand/collapse button)
+      * clarity-header-menu-action-container
+        * clarity-header-avatar-wrapper clarity-header-action (menu toggle button)
+          * clarity-ellipsis-horizontal-icon
+        * clarity-menu-dropdown
+          * clarity-menu-item (clear chat)
+            * clarity-refresh-icon
+          * clarity-menu-item (get help)
+            * clarity-help-icon
+          * clarity-menu-item (give feedback)
+            * clarity-feedback-icon
+          * clarity-menu-item (debug mode)
+            * clarity-bug-icon
+            * clarity-menu-status-item
+              * clarity-check-icon (conditional, when active)
+          * clarity-menu-item (live chat)
+            * clarity-live-chat-icon
+            * clarity-menu-status-item
+              * clarity-check-icon (conditional, when active)
+          * clarity-menu-item (about clarity)
+            * clarity-info-icon
+      * clarity-header-avatar-wrapper clarity-header-action (expand/collapse button)
         * clarity-expand-icon or clarity-collapse-icon
-    * clarity-header-menu-action-container
-      * clarity-header-avatar-wrapper clarity-header-action (menu toggle button)
-        * clarity-ellipsis-horizontal-icon
-
-> **Portal** — `clarity-menu-dropdown` (and the assistant carousel item's menu) is rendered into `document.body`, not as a DOM descendant of `clarity-header-menu-action-container`. It is shown nested here to indicate which trigger opens it, but selectors relying on ancestry from `#cocoaas_chat_wrapper` / `.root_inside_shadow` (or any other widget ancestor) will not match it — override it directly, e.g. `.clarity-menu-dropdown { ... }`. It stacks at `--clarity-widget-z-index + 2`, with a click-away backdrop at `--clarity-widget-z-index + 1`.
-
-      * clarity-menu-dropdown
-        * clarity-menu-item (clear chat)
-          * clarity-refresh-icon
-        * clarity-menu-item (get help)
-          * clarity-help-icon
-        * clarity-menu-item (give feedback)
-          * clarity-feedback-icon
-        * clarity-menu-item (debug mode)
-          * clarity-bug-icon
-          * clarity-menu-status-item
-            * clarity-check-icon (conditional, when active)
-        * clarity-menu-item (live chat)
-          * clarity-live-chat-icon
-          * clarity-menu-status-item
-            * clarity-check-icon (conditional, when active)
-        * clarity-menu-item (about clarity)
-          * clarity-info-icon
   * clarity-header-content-right
     * clarity-header-avatar-wrapper clarity-header-action (close button)
       * clarity-chevron-down-icon or clarity-light-close-icon (on mobile)
 
+> **Portal** — `clarity-menu-dropdown` (and the assistant carousel item's menu) is rendered into `document.body`, not as a DOM descendant of `clarity-header-menu-action-container`. It is shown nested here to indicate which trigger opens it, but selectors relying on ancestry from `#cocoaas_chat_wrapper` / `.root_inside_shadow` (or any other widget ancestor) will not match it — use `body .clarity-menu-dropdown.clarity-menu-dropdown { ... }` instead, see [Style the widget](../guides/02-style-the-widget.md#23-write-overrides-that-win). It stacks at `--clarity-widget-z-index + 2`, with a click-away backdrop at `--clarity-widget-z-index + 1`.
+
 ### clarity-chat
 
 * clarity-chat-outer-container
-  * clarity-touch-enclosed-container
-    * clarity-chat-container
-      * clarity-chat-inner-container (also clarity-only-scroll-bar)
-        * clarity-cold-start-wrapper
-        * clarity-message-wrapper
+  * clarity-chat-content
+    * clarity-chat-inner-container (also clarity-only-scroll-bar)
+      * clarity-cold-start-wrapper
+      * clarity-message-wrapper
   * clarity-chat-scroll-to-bottom-button
     * clarity-arrow-button
       * clarity-arrow-down-icon
@@ -311,20 +304,22 @@ Modifier: clarity-mini-pdp--inside
 * clarity-message-container (modifiers: clarity-with-thumbs, clarity-always-show-thumbs)
   * clarity-message-carousel-divider-container
     * clarity-message-carousel-divider
-  * clarity-message-content-wrapper
-  * clarity-message-content (modifiers: clarity-full-width, clarity-assistant-carousel-message)
-    * clarity-assistant-text-message
-    * clarity-assistant-carousel-message--horizontal
-    * clarity-assistant-carousel-message--vertical
-    * clarity-user-text-message
-    * clarity-debug-message
-    * clarity-error-message
-    * clarity-assistant-quick-reply-message
-    * clarity-reference-products-message
-      * clarity-reference-products-message-container
-        * clarity-reference-products-message-measure
-        * clarity-reference-products-message-content
-          * clarity-reference-products-message-more-text-number
+  * clarity-message-content-container (one per message)
+    * clarity-message-content (modifiers: clarity-full-width, clarity-assistant-carousel-message)
+      * clarity-assistant-text-message
+      * clarity-assistant-carousel-message--horizontal
+      * clarity-assistant-carousel-message--vertical
+      * clarity-user-text-message
+      * clarity-debug-message
+      * clarity-error-message
+      * clarity-assistant-quick-reply-message
+      * clarity-reference-products-message
+        * clarity-reference-products-message-container
+          * clarity-reference-products-message-measure
+          * clarity-reference-products-message-content
+            * clarity-reference-products-message-more-text-number
+    * clarity-message-content-wrapper (instead of clarity-message-content for an external agent reply)
+      * clarity-message-content
   * clarity-select-mode-message
     * clarity-select-mode-message-content
       * clarity-select-mode-message-content-text
@@ -384,16 +379,16 @@ Modifier: clarity-mini-pdp--inside
 
 ### clarity-assistant-carousel-item-wrapper
 
-> **Global styles** — Default styles for `clarity-assistant-carousel-item-wrapper` (the product card shell) are injected as a global style block rooted at `.root_inside_shadow .clarity-assistant-carousel-item-wrapper`, so these rules are scoped inside the shadow DOM but are **not** component-scoped — they can be overridden by other global styles targeting the same classes without needing `!important`.
+> **Global styles** — Default styles for `clarity-assistant-carousel-item-wrapper` (the product card shell) are injected as a global style block rooted at `.root_inside_shadow .clarity-assistant-carousel-item-wrapper`, so these rules are scoped to the widget but are **not** component-scoped, and none uses `!important`. The widget adds the block after your stylesheets, so a rule of equal specificity loses; prefix yours with `#cocoaas_chat_wrapper`, see [Style the widget](../guides/02-style-the-widget.md#23-write-overrides-that-win).
 
 The wrapper element renders as `<div role="button" tabindex="0">` with `aria-label`, `aria-pressed` (in select mode), and `aria-disabled` set appropriately. It handles keyboard activation (Enter / Space) on top of the existing click handler.
 
 Modifier: clarity-assistant-carousel-item-wrapper--selected
 
-* clarity-assistant-carousel-item (also carries `class-assistant-carousel-item-${product.id}` for targeting an individual product card)
+* clarity-assistant-carousel-item (also carries `class-assistant-carousel-item-${product.id}` for targeting an individual product card; with an overridden `ProductCard` this element is the mount container itself, carries clarity-mount-wrapper too and has no clarity-assistant-carousel-item-wrapper around it)
   * clarity-assistant-carousel-item-shadow
     * clarity-assistant-carousel-item-content
-      * clarity-assistant-carousel-selected-checkbox / clarity-assistant-carousel-checkbox (select mode)
+      * clarity-assistant-carousel-checkbox clarity-assistant-carousel-selected-checkbox (select mode)
       * clarity-assistant-carousel-item-image
       * clarity-assistant-carousel-product
 
@@ -415,7 +410,7 @@ Modifier: clarity-assistant-carousel-item-wrapper--selected
   * clarity-star-filled-icon
 * clarity-assistant-carousel-product-variants
 * clarity-assistant-carousel-product-variant-selection (when `enableProductCardVariantSelection` is on and the product has `color`/`size` variants)
-  * clarity-assistant-carousel-product-color (color dimension block)
+  * clarity-assistant-carousel-product-dimension (color dimension block)
     * clarity-assistant-carousel-product-dimension-selected (label + value row)
       * clarity-assistant-carousel-product-dimension-label
       * clarity-assistant-carousel-product-dimension-value
@@ -426,17 +421,19 @@ Modifier: clarity-assistant-carousel-item-wrapper--selected
     * clarity-assistant-carousel-product-dimension-label
     * clarity-assistant-carousel-product-size-select
 * clarity-assistant-carousel-product-spacer
-* clarity-assistant-carousel-product-content-footer
-  * clarity-assistant-carousel-product-price-container
-    * clarity-assistant-carousel-product-price-group
-      * clarity-assistant-carousel-product-price
-      * clarity-assistant-carousel-product-discount-percentage (shown only when `showDiscountPercentage` is set and a single-price discount exists)
-    * clarity-assistant-carousel-product-original-price
-  * clarity-assistant-carousel-product-content-footer-buttons
-    * clarity-assistant-carousel-product-content-footer-button clarity-assistant-carousel-product-content-footer-icon-button (ellipsis)
-      * clarity-ellipsis-horizontal-icon
-    * clarity-assistant-carousel-product-content-footer-button clarity-assistant-carousel-product-atc (add to cart, conditional). Carries one of `clarity-assistant-carousel-product-atc-idle | -adding | -added | -failed` reflecting the click outcome, or `clarity-assistant-carousel-product-atc-select-size` while the in-card variant selector still has no size picked (button is disabled and shows "Select Size" without an icon).
-      * clarity-cart-icon (idle) / clarity-spinner-icon (adding) / clarity-check-icon (added) / clarity-error-icon (failed)
+* clarity-assistant-carousel-product-content-footer-container
+  * clarity-assistant-carousel-product-content-footer
+    * clarity-assistant-carousel-product-price-container
+      * clarity-assistant-carousel-product-price-group
+        * clarity-assistant-carousel-product-price
+        * clarity-assistant-carousel-product-discount-percentage (shown only when `showDiscountPercentage` is set and a single-price discount exists)
+      * clarity-assistant-carousel-product-original-price
+    * clarity-assistant-carousel-product-content-footer-buttons
+      * clarity-button clarity-button--secondary clarity-assistant-carousel-product-content-footer-button clarity-assistant-carousel-product-content-footer-icon-button (ellipsis)
+        * clarity-ellipsis-horizontal-icon
+      * clarity-button clarity-assistant-carousel-product-content-footer-button clarity-assistant-carousel-product-atc (add to cart, conditional; + clarity-button--primary when the View details button is shown, clarity-button--secondary otherwise). Carries one of `clarity-assistant-carousel-product-atc-idle | -adding | -added | -failed` reflecting the click outcome, or `clarity-assistant-carousel-product-atc-select-size` while the in-card variant selector still has no size picked (button is disabled and shows "Select Size" without an icon).
+        * clarity-cart-icon (idle) / clarity-spinner-icon (adding) / clarity-check-icon (added) / clarity-error-icon (failed)
+  * clarity-button clarity-button--secondary clarity-assistant-carousel-product-content-footer-button (View details, with `showLinkInCard` and a product URL; inside clarity-assistant-carousel-product-content-footer-buttons when the add-to-cart button is off, after clarity-assistant-carousel-product-content-footer as its sibling otherwise)
 
 ### clarity-user-text-message
 
@@ -531,6 +528,8 @@ Modifier: clarity-agent-csat-survey-expired once the survey was left unrated for
 
 ### clarity-pdf-backdrop
 
+The PDF viewer. Rendered directly into `document.body`, not inside `#cocoaas_chat_wrapper`, so it inherits from `body` and its overrides cannot start with `#cocoaas_chat_wrapper`, see [Style the widget](../guides/02-style-the-widget.md#23-write-overrides-that-win).
+
 * clarity-pdf-modal
   * clarity-pdf-close-btn
   * clarity-pdf-frame
@@ -540,17 +539,17 @@ Modifier: clarity-agent-csat-survey-expired once the survey was left unrated for
 ## Desktop AI-Mode Side Panel (`cocoaas-desktop-ai-mode-*`)
 
 Rendered when [`ui.desktopTemplate: 'ai_mode'`](./widget-config.md#desktop-ai-mode-side-panel) is set — a
-separate tree appended directly to `document.body`, outside `#cocoaas_chat_wrapper` / the shadow DOM, so
+separate tree appended directly to `document.body`, outside `#cocoaas_chat_wrapper`, so
 these ids/classes use their own `cocoaas-` prefix rather than `clarity-`.
 
 ```
-#cocoaas-desktop-ai-mode-host             (flex row appended to document.body)
-  ├── #cocoaas-desktop-ai-mode-widget-wrapper   (widget side: sized/resized together with the mount below)
-  │     ├── .cocoaas-desktop-ai-mode-resize-handle--left / --right  (drag handle, only while open)
-  │     └── #cocoaas-desktop-ai-mode-widget-mount    (mount point for #cocoaas_chat_wrapper)
-  │           └── .cocoaas-desktop-ai-mode-open      (modifier while the chat is open)
-  │           └── .cocoaas-desktop-ai-mode-dragging  (modifier while the resize handle is being dragged)
-  └── #cocoaas-desktop-ai-mode-page-content     (the page's original content, moved in here; scrolls independently of the widget)
+#cocoaas-desktop-ai-mode-host             (flex row appended to document.body; children swapped when the panel is on the left)
+  ├── #cocoaas-desktop-ai-mode-page-content     (the page's original content, moved in here; scrolls independently of the widget)
+  └── #cocoaas-desktop-ai-mode-widget-wrapper   (widget side: sized/resized together with the mount below)
+        ├── .cocoaas-desktop-ai-mode-resize-handle (+ --left / --right)  (drag handle, only while open)
+        └── #cocoaas-desktop-ai-mode-widget-mount    (mount point for #cocoaas_chat_wrapper;
+                                                      + .cocoaas-desktop-ai-mode-open while the chat is open,
+                                                      + .cocoaas-desktop-ai-mode-dragging while the handle is dragged)
 ```
 
 `#...-widget-wrapper` carries `.cocoaas-desktop-ai-mode-side-left` / `-side-right` (border modifier,
@@ -701,6 +700,16 @@ Trigger templates use the `cui-` prefix. Each template is injected into the merc
 
 Icon and utility classes used across multiple components.
 
+### Buttons
+
+* clarity-button — base class of the mini PDP's add-to-cart button and of the product card's footer buttons
+  * clarity-button--primary (mini PDP add to cart; the card's add to cart when its View details button is shown)
+  * clarity-button--secondary (the card's View details and ellipsis buttons; its add to cart without View details)
+
+### Component override containers
+
+* clarity-mount-wrapper — the element a [component override](../guides/03-customize-components.md) mounts into; it also carries clarity-mini-pdp-wrapper for `MiniPDP` and clarity-assistant-carousel-item for `ProductCard`; for `ProductCarousel` it is the only child of clarity-assistant-carousel-item-container, in place of the item wrappers
+
 ### Widget icons (`clarity-*`)
 
 * clarity-light-close-icon
@@ -747,7 +756,7 @@ Icon and utility classes used across multiple components.
 * clarity-thumb-up-icon
 * clarity-voice-icon
 * clarity-fade-in
-* clarity-touch-enclosed-container
+* clarity-touch-enclosed-container (the chat's and the mini PDP's scroll containers)
 
 ### Trigger icons (`cui-*`)
 
@@ -781,7 +790,7 @@ Available throughout the widget. Two further global style blocks are described i
 
 ### Widget variables (`--clarity-widget-*`)
 
-Set programmatically on the widget root element from `getUIConfig()` values. The UIConfig field names correspond to `window.CLARITY_CONFIG.ui.*` — see [`widget-config.md`](./widget-config.md) for the full config reference.
+Set as inline styles on `#cocoaas_chat_wrapper` from `getUIConfig()` values, so overriding one from a stylesheet needs `!important`. The UIConfig field names correspond to `window.CLARITY_CONFIG.ui.*` — see [`widget-config.md`](./widget-config.md) for the full config reference.
 
 | Variable | Maps to UIConfig | Purpose |
 |---|---|---|
@@ -803,9 +812,9 @@ Set programmatically on the widget root element from `getUIConfig()` values. The
 | `--clarity-widget-pos-left` | position left | Widget position from left |
 | `--clarity-widget-pos-right` | position right | Widget position from right |
 | `--clarity-widget-product-image-ratio` | `productImageRatio` | Aspect ratio for product images |
-| `--clarity-widget-product-image-fit` | — | Object-fit for product images (default: cover) |
-| `--clarity-widget-banner-image-margin` | — | Margin-left on the banner image |
-| `--clarity-widget-messages-place-content` | — | Flex place-content for the messages container (default: flex-end) |
+| `--clarity-widget-product-image-fit` | `productImageContained` | Object-fit for product images: `contain` when set, otherwise `cover` |
+| `--clarity-widget-banner-image-margin` | `templateOptions.bannerImage` | Margin-left on the banner image: `1.5em` when a banner image is set, otherwise empty |
+| `--clarity-widget-messages-place-content` | `messagesAtTop` | Flex place-content for the messages container: empty when set, otherwise `flex-end` |
 
 ### Trigger variables (`--cui-param-*`)
 

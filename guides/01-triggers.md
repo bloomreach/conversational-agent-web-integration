@@ -19,7 +19,7 @@ your page has to provide. The complete list of parameters is in
 
 | Template | Looks like | Where | On click |
 |---|---|---|---|
-| [`floating_trigger`](#floating-trigger) | A draggable round button with your logo | Over the page, bottom corner | Opens the chat |
+| [`floating_trigger`](#floating-trigger) | A draggable tab with your logo | Over the page, right edge | Opens the chat |
 | [`plp_banner`](#plp-banner) | A banner with a headline, an image and one button | In a listing page, where you place it | Opens the chat and sends the banner text as the first message |
 | [`plp_embedded`](#plp-embedded) | A panel with a banner and suggested questions | In a listing page | Opens the chat with the clicked question |
 | [`pdp_embedded`](#pdp-embedded) | A panel of suggested questions about the product | In a product page | Opens the chat with the clicked question, about this product |
@@ -37,10 +37,12 @@ listen to its events.
 
 ## How every trigger behaves
 
-**Loading.** The weblayer waits [`PARAM_showAfter`](../reference/weblayer-config.md#lifecycle) milliseconds,
-checks its [scheduling](../reference/weblayer-config.md#scheduling) and
-[safety gates](../reference/weblayer-config.md#safety-metrics), then renders the trigger and loads the chat
-widget bundle behind it. The trigger becomes clickable once the widget has initialized.
+**Loading.** When the weblayer runs on a page, it first checks its
+[safety gates](../reference/weblayer-config.md#safety-metrics) and its
+[scheduling](../reference/weblayer-config.md#scheduling), once: if either says no, nothing loads on that page.
+When both pass, it waits [`PARAM_showAfter`](../reference/weblayer-config.md#lifecycle) seconds and the parent
+element (see Placement), then loads the chat widget bundle, or reuses the one another weblayer already loaded
+on the page. The trigger is rendered once the widget has initialized.
 
 **Placement.** `floating_trigger` renders over the page. Every other template renders **into an element of
 your page** selected by [`PARAM_parentElement`](../reference/weblayer-config.md#shared-all-templates) (a CSS
@@ -49,7 +51,8 @@ to `PARAM_waitForElementsTimeout` (default 3 s) for that element to exist, so si
 container late are covered; if it never appears, the trigger is not rendered. Inside the parent,
 `PARAM_index`, `PARAM_targetElement` and `PARAM_positiontoTargetElement` decide the exact position. The trigger
 is a `<div>` in your page's DOM, not a shadow root, with the classes `cui-trigger`,
-`clarity-trigger-<template>` and `clarity-trigger-id-<banner_id>` (plus `PARAM_className`).
+`clarity-trigger-<template>` (`clarity-trigger-base` without a template) and `clarity-trigger-id-<banner_id>` (plus
+`PARAM_className`, and `clarity-trigger-control-group` for a control group).
 
 **Styling.** The trigger inherits your page's CSS. Override its `cui-*` classes and `--cui-param-*` variables
 from your stylesheet, or put CSS in the weblayer's [`style`](../reference/weblayer-config.md#identity--tracking)
@@ -57,8 +60,7 @@ field. See [`styles.md` → Trigger Class Hierarchy](../reference/styles.md#trig
 
 **Opening the chat.** When a trigger opens the chat it shows the widget, opens it, and, if the trigger carries a
 text (a suggested question, the banner text, a quiz answer), sends that text as the shopper's first message.
-When a text is sent, the widget's own initial message is skipped. `PARAM_resetChat` clears the previous
-conversation first.
+When a text is sent, the widget's own initial message is skipped.
 
 **Events.** Every trigger fires `ClarityTrigger:*` browser events (`show` when it scrolls into view, `clicked`,
 …) that your page can listen to, and tracks them to Engagement; see
@@ -66,8 +68,9 @@ conversation first.
 `trigger.trackerConfig` add your own callbacks and analytics properties.
 
 **Empty state.** An embedded template that would render nothing (no questions came back and none are
-configured) hides itself instead of showing an empty panel. Configure `PARAM_fallbackQuestions` to guarantee
-it always has content.
+configured) hides itself instead of showing an empty panel. Configure `PARAM_fallbackQuestions` so it has
+content when nothing is generated; it is still hidden when the product or category lookup fails, see
+[`weblayer-config.md`](../reference/weblayer-config.md#plp-embedded--pdp-embedded--interaction-embedded--embedded-chat).
 
 **One widget per page.** All triggers on a page share one widget. They may differ in template and settings,
 but [`widgetTemplate`](../reference/weblayer-config.md#widgettemplate) has to be the same for all of them.
@@ -78,8 +81,9 @@ but [`widgetTemplate`](../reference/weblayer-config.md#widgettemplate) has to be
 
 ### Floating trigger
 
-`triggerTemplate: 'floating_trigger'`. A round button fixed over the page that the shopper can drag along the
-edge; shows your logo (`PARAM_logo`) or the assistant icon. Needs no element on your page.
+`triggerTemplate: 'floating_trigger'`. A tab fixed to the right edge of the page, vertically centred, that the
+shopper can drag up and down (the position is remembered); shows your logo (`PARAM_logo`) or the assistant
+icon. Needs no element on your page.
 
 Click: opens the chat. While the chat is open the button is hidden; `PARAM_showTriggerWhenMinimized` keeps it
 visible when the widget is minimized.
@@ -92,8 +96,9 @@ visible when the widget is minimized.
 `PARAM_parentElement`.
 
 Click: opens the chat and sends `PARAM_bannerText` as the shopper's first message. With
-`PARAM_isToggleButton` the button toggles the widget instead: it hides the widget when it is visible, which
-makes the banner an open/close control, used for example with the [Side Panel](./03-side-panel.md).
+`PARAM_isToggleButton` the button toggles the widget instead: it hides the widget when it is visible, firing the
+[`badgeHidden`](../reference/hooks.md#badgehidden) hook, which makes the banner an open/close control, used for example with the
+[Side Panel](./05-side-panel.md), where hiding the widget collapses the panel.
 
 ### PLP embedded
 
@@ -109,10 +114,10 @@ Click on a question: opens the chat with that question as the first message.
 ### PDP embedded
 
 `triggerTemplate: 'pdp_embedded'`. The product-page counterpart: a header (`PARAM_headerText`) and suggested
-questions about the product on the page, generated from the product (`PARAM_enableGeneratedQuestions`,
-`PARAM_staticReviewQuestions` when a review summary exists) or static (`PARAM_buttonText`,
-`PARAM_staticQuestionsBefore`, `PARAM_staticQuestionsAfter`), with `PARAM_fallbackQuestions` when nothing is
-generated, and an "Ask anything" button. Renders into `PARAM_parentElement`.
+questions about the product on the page, generated from the product (`PARAM_enableGeneratedQuestions`, with
+`PARAM_staticQuestionsBefore`, `PARAM_staticQuestionsAfter`, `PARAM_staticReviewQuestions` when a review summary
+exists, and `PARAM_fallbackQuestions` when nothing is generated) or static (`PARAM_buttonText`), and an "Ask
+anything" button. Renders into `PARAM_parentElement`.
 
 The product is identified by the weblayer's [`productIds`](../reference/weblayer-config.md#product-context),
 which your page provides (through the weblayer's product context or
@@ -123,7 +128,7 @@ Click on a question: opens the chat with that question, scoped to the product on
 ### Interaction embedded
 
 `triggerTemplate: 'interaction_embedded'`. A panel that holds a short conversation **inside itself**: a header
-(`PARAM_headerText`) with a close button, suggested questions (generated or static, same parameters as the
+(`PARAM_headerText`; once an answer is shown, a close button that starts the conversation over), suggested questions (generated or static, same parameters as the
 PDP template), and room for the answer. Renders into `PARAM_parentElement`.
 
 Click on a question: the question and the assistant's text answer are shown in the panel, followed by the next
@@ -140,7 +145,8 @@ static, same parameters as the PDP template; long button texts wrap according to
 Renders into `PARAM_parentElement`.
 
 The shopper converses in the panel; messages and answers are shown inline and the floating widget stays
-closed. A reset control starts the conversation over.
+closed, except that an answer with products carries a "See products" link that opens it. A reset control starts
+the conversation over.
 
 ### Search suggestion
 
@@ -155,8 +161,8 @@ await window.CLARITY_WEBLAYER?.call(bannerId, 'search', {
 ```
 
 and the weblayer renders a list of suggested questions (`PARAM_resultsHeaderText` above it, at most
-`PARAM_suggestionsLimit` items) once the text has `PARAM_minSearchLength` characters (default 3); shorter input
-shows `PARAM_placeholderQuestions`. The `rerender`, `hide` and `select` commands are described under
+`PARAM_suggestionsLimit` items) once the text has `PARAM_minSearchLength` characters (default 3); shorter input,
+or a search with no results, shows `PARAM_fallbackQuestions` (or, if unset, `widget.PARAM_placeholderQuestions`). The `rerender`, `hide` and `select` commands are described under
 [`window.CLARITY_WEBLAYER`](../reference/weblayer-config.md#windowclarity_weblayer--trigger-api). `bannerId`
 is the weblayer's `data.banner_id`.
 
@@ -167,7 +173,7 @@ Click on a suggestion: opens the chat with that suggestion as the first message.
 ### Quiz embedded
 
 `triggerTemplate: 'quiz_embedded'`. A step-by-step questionnaire (`quizQuestions`: each with options or a
-free-text field, `PARAM_optionalText` marking optional ones), with a progress bar, back and close buttons, an
+free-text field, `PARAM_optionalText` shown after free-text questions), with a progress bar, back and close buttons, an
 optional banner (`PARAM_bannerImage`, `PARAM_bannerText`). Renders into `PARAM_parentElement`.
 
 On the last answer: opens the chat, replays the questions and answers into it as the conversation so far, and
@@ -179,13 +185,16 @@ sends the last answer as the message, so the assistant recommends products from 
 A weblayer with **no `triggerTemplate`** and [`directShowWidget: true`](../reference/weblayer-config.md#lifecycle)
 loads the chat widget and shows it as soon as it has initialized, with no trigger element on the page. The
 widget appears in its own minimized form, the badge, or in the state
-[`initialState`](../reference/widget-config.md#initial-state) selects, and the shopper opens it from there. Use
+[`initialState`](../reference/widget-config.md#initial-state) selects; with the default `0`, it expands by itself
+for a visitor who has not chatted yet, in each new browser tab, once the first message has loaded (not when
+`suppressInitialMessage` is set or the home screen shows). Otherwise the shopper opens it from there. Use
 this when the brand starts the conversation: a campaign landing page, a page where the widget should simply be
 present, or a hand-off from another channel.
 
-The widget's own settings (`widget.ui`, `widget.initialMessage`, …) decide what the shopper sees; everything
-else in this guide about triggers does not apply, since there is none. The `follow_up` template behaves the
-same way and exists for weblayers that continue an earlier conversation.
+The widget's own settings (`widget.ui`, `widget.PARAM_initialMessage`, …) decide what the shopper sees; everything
+else in this guide about triggers does not apply, since there is none. The `follow_up` template, for weblayers
+that continue an earlier conversation, likewise renders no trigger; it loads the widget but shows it only with
+`directShowWidget: true`.
 
 ---
 
@@ -206,4 +215,4 @@ the weblayer tracks to Engagement for them under
 
 ---
 
-[← Getting Started](README.md) · [Chapter 2 — Customize components →](02-customize-components.md)
+[← Getting Started](README.md) · [Chapter 2 — Style the widget →](02-style-the-widget.md)

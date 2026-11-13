@@ -54,8 +54,8 @@ Fed by `widgetShown` (widget becomes visible) and `surveyShow` (feedback survey 
 | `chat_widget_state` | `'open'` \| `'bubble'` \| `'minimized'` | `widgetShown` |
 | `chat_widget_size` | `string` (see `chat_open`) | `widgetShown` |
 | `chat_config` | `object` | `widgetShown` |
-| `component` | `'chat'` (widget) \| `'feedback_survey'` (survey) | `widgetShown`, `surveyShow` |
-| `component_template` | `'chat_v1'` \| `'feedback_survey_v1'` | `widgetShown`, `surveyShow` |
+| `component` | `'chat'` (widget) \| `'ai_mode'` (AI Mode) \| `'feedback_survey'` (survey) | `widgetShown`, `surveyShow` |
+| `component_template` | `'chat_v1'` \| `'ai_mode_v1'` \| `'feedback_survey_v1'` | `widgetShown`, `surveyShow` |
 | `action?` | `string` | `widgetShown` |
 | `button_text?` | `string` | `widgetShown` |
 | `chat_opened_from_trigger?` | `string` | `widgetShown` |
@@ -129,11 +129,8 @@ Sub-event fired once per product alongside `user_respond`.
 | `message?` | `string` | `clarityRespond` |
 | `product_ids?` | `string[]` | `clarityRespond` |
 | `products_display_type` | `'carousel'` \| `'thumbnail'` \| `'carousel_with_thumbnail'` | `clarityRespond` |
-| `carousel_product_ids?` | `string[]` — subset shown in carousel | `clarityRespond` |
 | `response_source?` | `'PDKB'` \| `'PDKBG'` \| `'KB'` \| `'KBG'` \| `'gk'` — knowledge-base / general-knowledge answers; absent for a plain product search | `clarityRespond` |
 | `suggested_buttons?` | `Prompt[]` — quick replies + prompts; empty when `ui.hideSimilarCarouselPrompts` hides a similar-products response's buttons | `clarityRespond` |
-| `prompts?` | `Prompt[]` — same hide rule as `suggested_buttons` | `clarityRespond` |
-| `qrs?` | `QuickReply[]` — same hide rule as `suggested_buttons` | `clarityRespond` |
 | `latency?` | `number` — ms | `clarityRespond` |
 | `intent_type` | `string` — e.g. `'search'` \| `'product_question'` \| `'kb_question'` \| `'similar_search'` \| `'unclear'` \| `'general'`; `'other'` when none was detected | `clarityRespond` |
 | `server_latency?` | `string` — backend-reported response time reported by the backend | `clarityRespond` |
@@ -143,6 +140,8 @@ Sub-event fired once per product alongside `user_respond`.
 | `total_token_count?` | `number` — backend-reported total LLM token count reported by the backend | `clarityRespond` |
 | `llm_call_count?` | `number` — backend-reported number of LLM calls reported by the backend | `clarityRespond` |
 | `user_respond_source` | `string` — trigger component that opened the chat; `'in_chat'` when not from a trigger | `clarityRespond` |
+
+> The hook's `carousel_product_ids`, `prompts` and `qrs` are not tracked.
 
 > The trigger context behind `user_respond_source` is kept across `user_respond` and released by the turn's terminal hook: `clarity_respond`, `clarity_error` or `clarity_warning`, whichever comes first.
 
@@ -273,23 +272,23 @@ Fired when the shopper starts a PayPal checkout with the mini PDP's Buy now butt
 | `checkout_provider` | `'paypal'` | `checkout` |
 | `product_category?` | `string` — merchant-configured category attribute | `checkout` |
 
-### `purchase`
+### `purchase` / `checkout_cancel` / `checkout_error`
 
-Fired when that checkout settles, once per `checkout` event. `interaction` is `false`.
+Each `checkout` event is followed by at most one of these, when that checkout settles (none when the shopper leaves the page with the checkout still open): `purchase` when PayPal approved the payment, `checkout_error` when it failed, `checkout_cancel` when it ended otherwise (see [`hooks.md`](./hooks.md#purchase-checkoutcancel-checkouterror)). `interaction` is `false`.
 
 | Field | Type / Values | Hook |
 |---|---|---|
-| `agent_id` | `string` | `purchase` |
-| `conversation_state` | `string` (see `chat_open`) | `purchase` |
-| `chat_widget_size` | `string` (see `chat_open`) | `purchase` |
-| `chat_config` | `object` | `purchase` |
-| `product_ids` | `string[]` | `purchase` |
-| `checkout_location` | `'quick_view'` | `purchase` |
-| `checkout_provider` | `'paypal'` | `purchase` |
-| `product_category?` | `string` | `purchase` |
-| `purchase_status` | `'success'` \| `'failure'` \| `'cancelled'` — cancelled covers the shopper closing the payment sheet or overlay, and the chat being closed | `purchase` |
-| `order_id?` | `string` — PayPal order id, `success` only | `purchase` |
-| `error?` | `string` — PayPal SDK error message, `failure` only | `purchase` |
+| `agent_id` | `string` | `purchase`, `checkoutCancel`, `checkoutError` |
+| `conversation_state` | `string` (see `chat_open`) | `purchase`, `checkoutCancel`, `checkoutError` |
+| `chat_widget_size` | `string` (see `chat_open`) | `purchase`, `checkoutCancel`, `checkoutError` |
+| `chat_config` | `object` | `purchase`, `checkoutCancel`, `checkoutError` |
+| `product_ids` | `string[]` | `purchase`, `checkoutCancel`, `checkoutError` |
+| `checkout_location` | `'quick_view'` | `purchase`, `checkoutCancel`, `checkoutError` |
+| `checkout_provider` | `'paypal'` | `purchase`, `checkoutCancel`, `checkoutError` |
+| `product_category?` | `string` | `purchase`, `checkoutCancel`, `checkoutError` |
+| `order_id?` | `string` — PayPal order id | `purchase` |
+| `message` | `'paypal_closed'` \| `'chat_closed'` \| `'new_checkout'` | `checkoutCancel` |
+| `error` | `string` — error message of the failed checkout, truncated to 2000 chars | `checkoutError` |
 
 ### `mini_pdp_click`
 
@@ -457,6 +456,8 @@ Every tracked trigger event carries the [default attributes](#default-attributes
 | `search_text?` | `string` — search-suggestion template | `show` |
 | `search_results?` | `string[]` — search-suggestion template | `show` |
 
+The search-suggestion template also tracks a `show` after every suggestion fetch, so it logs many per page view.
+
 ### `actual_show`
 
 v2.0 only.
@@ -466,6 +467,9 @@ v2.0 only.
 | `source` | `string` — `banner_id` | `actualShow` |
 | `trigger_context_product_ids` | `string[]` | `actualShow` |
 | `trigger_context_product_ids_type?` | `'product_id'` \| `'item_id'` | `actualShow` |
+| `trigger_conversation_starters_list?` | `string[]` — the questions shown | `actualShow` |
+| `trigger_conversation_starters_is_generated?` | `boolean` — embedded templates | `actualShow` |
+| `trigger_conversation_starters_generated?` | `boolean[]` — per-question flags, embedded templates | `actualShow` |
 
 ### `trigger_clicked`
 
@@ -511,7 +515,6 @@ These hooks exist as browser events and callbacks (see [`hooks.md`](./hooks.md))
 | `reloadStarted` | Function hook — actionable callback |
 | `initialMessage` | Function hook — actionable callback |
 | `searchedProducts` | Function hook — actionable callback |
-| `searchUpdated` | Function hook — actionable callback |
 
 **Trigger hooks**
 

@@ -1,6 +1,6 @@
-[← Back to Chapter 1 — Triggers](01-triggers.md)
+[← Back to Chapter 2 — Style the widget](02-style-the-widget.md)
 
-# 2. Customize components
+# 3. Customize components
 
 Custom React, Vue, Angular, or plain JS components can replace the built-in MiniPDP, ProductCard, and ProductCarousel slots. Function overrides let you intercept actions like add-to-cart.
 
@@ -35,7 +35,7 @@ The callbacks in `props` always act on the widget's current state, so the ones r
 | Prop | Description |
 |------|-------------|
 | `product` | The [product](#product) (title, image, price, variants, url…) |
-| `selectedVariant` | Currently selected variant (`undefined` if none chosen) |
+| `selectedVariant` | Currently selected variant (the product itself if none chosen) |
 | `onClose` | Call this to close the panel |
 | `onVariantSelect(variantId)` | Call this when the user picks a variant |
 | `onAddToCart(config?)` | Call this when the user clicks add-to-cart. Routes through `fn.addToCart` exactly like the built-in mini-PDP button. Pass `{ skipAddToCartFn: true }` ([`AddToCartCallbackConfig`](#addtocartcallbackconfig)) to only log the `addToCart` event without invoking `fn.addToCart`. |
@@ -59,7 +59,7 @@ The callbacks in `props` always act on the widget's current state, so the ones r
 | `onAddToCart(config?)` | Call this when the user clicks add-to-cart. Routes through `fn.addToCart` like the built-in button. Pass `{ skipAddToCartFn: true }` to only log the `addToCart` event without invoking `fn.addToCart`. |
 | `onFollowUp` | Call this to select this product and focus the chat input so the shopper can type a follow-up question (same as the built-in "Ask follow up" action) |
 | `onShowSimilar` | Call this to select this product and ask the assistant for similar products (same as the built-in "Find similar" action) |
-| `onEllipsisClick(anchorEl, productId, position?)` | Call this to open the built-in product action menu (Ask follow up / Find similar / Go to product page) anchored to `anchorEl` (e.g. an ellipsis button). `position` controls where the menu appears relative to the anchor and defaults to `'top-left'`, see [`Position`](#position). `productId` is accepted for signature parity with the carousel slot. |
+| `onEllipsisClick(anchorEl, productId, position?)` | Call this to open the built-in product action menu (Ask follow up / Find similar / Go to product page) anchored to `anchorEl` (e.g. an ellipsis button). `position` controls where the menu appears relative to the anchor and defaults to `'top-right'` when `ui.useAddToCart` is on, `'top-left'` otherwise, see [`Position`](#position). `productId` is accepted for signature parity with the carousel slot. |
 
 `update` is triggered by changes to `isSelected` or `isDisabled`. It is only called for external widget actions — **not** when the change was caused by `onProductClick` or `onAddToCart` being invoked inside the component, unless `config.updateForComponentAction: true` is returned.
 
@@ -77,10 +77,10 @@ Receives the full list of products in one mount instead of one card at a time. W
 | `onVariantSelect(variantId)` | Call this when the user picks a variant. |
 | `onProductClick(productId)` | Call with a product **or variant** id when the user clicks a card. Resolves to the owning product (opens the mini-PDP, or toggles selection in compare mode). |
 | `onOpenMiniPDP(productId)` | Call with a product **or variant** id to always open the mini-PDP for the owning product, regardless of select mode. |
-| `onAddToCart(productId, config?)` | Call with a product **or variant** id when the user clicks add-to-cart. When a variant id is passed, that variant is added; otherwise the product. Routes through `fn.addToCart` exactly like the built-in button. Pass `{ skipAddToCartFn: true }` to only log the `addToCart` event without invoking `fn.addToCart` (e.g. when your component already handles the add itself). |
+| `onAddToCart(productId, config?)` | Call with a product **or variant** id when the user clicks add-to-cart. When a variant id is passed, that variant is added; for a product id, the variant last passed to `onVariantSelect` for that product, otherwise the product itself. Routes through `fn.addToCart` exactly like the built-in button. Pass `{ skipAddToCartFn: true }` to only log the `addToCart` event without invoking `fn.addToCart` (e.g. when your component already handles the add itself). |
 | `onFollowUp(productId)` | Call with a product **or variant** id to select the owning product and focus the chat input for a typed follow-up (same as the built-in "Ask follow up" action). |
 | `onShowSimilar(productId)` | Call with a product **or variant** id to select the owning product and ask the assistant for similar products (same as the built-in "Find similar" action). |
-| `onEllipsisClick(anchorEl, productId, position?)` | Call to open the built-in product action menu (Ask follow up / Find similar / Go to product page) for the given product, anchored to `anchorEl` (e.g. an ellipsis button). Pass a product **or variant** id; the widget resolves the owning product. `position` controls where the menu appears relative to the anchor and defaults to `'top-left'`, see [`Position`](#position). |
+| `onEllipsisClick(anchorEl, productId, position?)` | Call to open the built-in product action menu (Ask follow up / Find similar / Go to product page) for the given product, anchored to `anchorEl` (e.g. an ellipsis button). Pass a product **or variant** id; the widget resolves the owning product. `position` controls where the menu appears relative to the anchor and defaults to `'top-right'` when `ui.useAddToCart` is on, `'top-left'` otherwise, see [`Position`](#position). |
 
 `onProductClick`, `onOpenMiniPDP`, `onAddToCart`, `onFollowUp`, `onShowSimilar`, and `onEllipsisClick` accept either a product id or any of that product's variant ids — the widget looks up the matching product/variant for you.
 
@@ -197,8 +197,13 @@ import MyComponent from './my-component'
 @Injectable({ providedIn: 'root' })
 export class ClarityConfigService {
   constructor(private appRef: ApplicationRef, private injector: EnvironmentInjector) {
-    window.CLARITY_CONFIG = {
+    // keep whatever the install snippet or the weblayer already put there; a standalone
+    // install snippet assigns window.CLARITY_CONFIG, so it has to run before this service
+    window.CLARITY_CONFIG ??= {}
+    window.CLARITY_CONFIG.ui = {
+      ...window.CLARITY_CONFIG.ui,
       component: {
+        ...window.CLARITY_CONFIG.ui?.component,
         MiniPDP: (el, props) => this.mount(MyComponent, el, props),
       },
     }
@@ -228,7 +233,7 @@ Function overrides are set via `window.CLARITY_CONFIG.ui.fn`.
 
 ### `fn.addToCart`
 
-Called when the user clicks the add-to-cart button on a product card, or when a custom `ProductCard` component invokes its `onAddToCart` callback.
+Called when the user clicks the add-to-cart button on a product card or in the mini-PDP, or when a custom `MiniPDP`, `ProductCard` or `ProductCarousel` component invokes its `onAddToCart` callback.
 
 ```js
 window.CLARITY_CONFIG.ui = {
@@ -262,7 +267,7 @@ The second argument, `config`, carries:
 - `{ status: 'success' | 'failed'; message?: string }` — synchronous result.
 - `Promise<void | { status; message? }>` — async result.
 
-Returning a result lets the widget reflect outcome state on the UI. The built-in carousel "Add to cart" button transitions through `Adding` → `Added` / `Failed` and resets after 3s — the `Failed` label appears when `addToCart` returns `{ status: 'failed' }`, `Added` when it returns `{ status: 'success' }`. When `addToCart` returns nothing (`void`), the button silently returns to its idle state — nothing appears to happen. A custom `MiniPDP` (or any consumer) can reflect the same outcome on its own UI.
+Returning a result lets the widget reflect outcome state on the UI. The built-in carousel "Add to cart" button transitions through `Adding` → `Added` / `Failed` and resets after 3s — the `Failed` label appears when `addToCart` returns `{ status: 'failed' }`, `Added` when it returns `{ status: 'success' }`; a throw or rejection also shows `Failed`. When `addToCart` returns nothing (`void`), the button silently returns to its idle state — nothing appears to happen. A custom `MiniPDP` (or any consumer) can reflect the same outcome on its own UI.
 
 The built-in `MiniPDP` also renders its own "Add to cart" button (below the variant options / variant questions) whenever `fn.addToCart` is defined. It shares the same `Adding` → `Added` / `Failed` outcome handling as the carousel button and routes clicks through the same handler.
 
@@ -281,14 +286,14 @@ window.CLARITY_CONFIG.ui = {
   useAddToCart: true,
   fn: {
     showATCButton(product) {
-      // e.g. hide ATC when a stock field on variants is out of stock
-      return product.variants?.some(v => v.in_stock === true) ?? true
+      // e.g. hide ATC when everything it could add is known to be out of stock
+      return (product.variants ?? [product]).some(v => v.in_stock !== false)
     }
   }
 }
 ```
 
-`product` is a [product](#product) after variant enrichment. Stock-related variant fields are available when Bloomreach has registered your catalog's stock attributes (e.g. `in_stock`) on your agent; those attributes are excluded from the mini-PDP dimension picker but remain on each variant object for use in this callback.
+`product` is a [product](#product) after variant enrichment: on the mini-PDP, and on a product card with the in-card variant selector ([`enableProductCardVariantSelection`](../reference/widget-config.md#display-toggles)), it is the selected variant (a default variant until one is picked, the product itself when it has none), so it has no `variants`; otherwise it is the product with its `variants`. Stock-related variant fields are available when Bloomreach has registered your catalog's stock attributes (e.g. `in_stock`) on your agent; those attributes are excluded from the mini-PDP dimension picker but remain on each variant object for use in this callback.
 
 ### `fn.showCheckoutButton`
 
@@ -314,7 +319,7 @@ Unlike `addToCart`, which gets copies once per click, this callback runs on ever
 
 ### `fn.goToProductPage`
 
-Called instead of navigating to the product URL when a shopper clicks into a product — a product card's "View details" link, the product-card menu's "Go to product page" item, or the mini-PDP's own go-to-PDP button. The widget still performs its own logging (the `urlClick` hook, a chat event rendered as a "Now viewing product {product_title}" banner, and the click-out event) — this override only replaces the navigation itself.
+Called instead of navigating to the product URL when a shopper clicks into a product — a product card's "View details" link, the product-card menu's "Go to product page" item, the mini-PDP's own go-to-PDP button, or a product card itself when [`ui.enableMiniPDP`](../reference/widget-config.md#feature-flags) is off. It is not called for an item without a `url`. The widget still performs its own logging (the `urlClick` hook, a chat event rendered as a "Now viewing product {product_title}" banner, and the click-out event) — this override only replaces the navigation itself.
 
 ```js
 window.CLARITY_CONFIG.ui = {
@@ -403,14 +408,14 @@ window.CLARITY_CONFIG.ui = {
 | `price` | The current price. |
 | `originalPrice` | The pre-discount price, struck through when it is higher than `price` and used for the [`showDiscountPercentage`](../reference/widget-config.md#feature-flags) badge. |
 | `currency` | ISO 4217 code or symbol; falls back to the response's currency, then [`defaultCurrency`](../reference/widget-config.md). |
-| any [`priceAttributesToUse`](../reference/widget-config.md#getcontext-contextfields) `attributeName`, e.g. `price_member` | A context-aware price; same fallback rules. Ignored for an attribute the page does not currently list. See [Context-Aware Pricing](./04-context-aware-pricing.md#uifngetproductprices). |
+| any [`priceAttributesToUse`](../reference/widget-config.md#getcontext-contextfields) `attributeName`, e.g. `price_member` | A context-aware price; same fallback rules. Ignored for an attribute the page does not currently list. See [Context-Aware Pricing](./06-context-aware-pricing.md#uifngetproductprices). |
 
 Notes:
 
 - **A field you omit, or return as `null`/`undefined`, keeps the backend value** — so `return { price: lookup?.memberPrice }` is safe when the lookup misses, and `{}` leaves every price untouched. To deliberately show no price, return `''` for it.
 - **Called for variants too**, not just top-level products — on a product card's selected variant, on every variant when [`ui.supportPriceRange`](../reference/widget-config.md#feature-flags) is on (unless the card shows a variant selector, which prices only the selected variant), and on the mini-PDP's active variant. Check `product.id` to price a variant differently.
 - **May be synchronous or `async`.** A returned object is applied immediately; a returned Promise shows no price for that product until it settles (a `supportPriceRange` range waits for every variant). A settled result is cached per product for the page's life, so an `async` callback (and any request it makes) runs once per product. A sync result is not cached — the callback runs on every render, so keep it cheap and pure.
-- If the callback throws, rejects, or returns something that isn't an object, the widget shows the response's prices and logs a single `console.warn`.
+- If the callback throws, rejects, or returns something that isn't an object, the widget shows the response's prices and logs a single `console.warn`. Returning `null`/`undefined` keeps the response's prices without a warning, like `{}`.
 - **Display only.** Analytics events, the add-to-cart payload and the context sent to the assistant all still carry the price from the Clarity response, so the assistant's own text may quote that price.
 - Values are formatted by the widget as usual (currency symbol, [`ui.priceDecimalPlaces`](../reference/widget-config.md#feature-flags), price ranges). A string like `'$12.00'` is accepted, same as in the response.
 - Not applied inside a custom `ProductCard` / `MiniPDP` [component override](#component-overrides) — those render their own prices and receive the raw product.
@@ -435,7 +440,7 @@ window.CLARITY_CONFIG.ui = {
 - Similar-products batches (`SIMILAR_PRODUCTS`, `SEARCH_AND_SIMILAR_PRODUCTS`) stay in the chat whatever it returns, and it is not called for them.
 - **Called once per search result batch**, when the batch first shows up, and the answer sticks for that batch until the page reloads: navigating a single-page app or switching to another trigger's configuration (`source`) afterwards does not move it between the chat and the page.
 
-See [Side panel](./03-side-panel.md#15-hand-search-results-to-the-page) for the full hand-over.
+See [Side panel](./05-side-panel.md#14-hand-search-results-to-the-page) for the full hand-over.
 
 ---
 
@@ -455,7 +460,7 @@ Every product the widget hands to your code — `product` and `selectedVariant` 
 | `image` | `string \| null` | Main image URL |
 | `price` | `number \| string \| null` | Current price; a formatted string is possible |
 | `originalPrice` | `number \| string \| null` | Pre-discount price |
-| `contextAwarePrices` | `Record<string, number \| string \| null> \| null` | One price per attribute the page listed in `priceAttributesToUse`; empty unless [context-aware pricing](./04-context-aware-pricing.md) is on |
+| `contextAwarePrices` | `Record<string, number \| string \| null> \| null` | One price per attribute the page listed in `priceAttributesToUse`; empty unless [context-aware pricing](./06-context-aware-pricing.md) is on |
 | `currency` | `string \| null` | ISO 4217 code or symbol |
 | `description` | `string \| null` | |
 | `variantAttributeList` | `string[] \| null` | Names of the attributes that distinguish the variants (size, color, …) |
@@ -501,8 +506,8 @@ Where the built-in product action menu opened by `onEllipsisClick` appears, rela
 
 | Value | Horizontal placement |
 |---|---|
-| `'top-left'` (default), `'bottom-left'` | The menu's right edge is aligned with the anchor's right edge, so the menu extends to the left |
-| `'top-right'`, `'bottom-right'` | The menu's left edge is aligned with the anchor's left edge, so the menu extends to the right |
+| `'top-left'` (default without `ui.useAddToCart`), `'bottom-left'` | The menu's right edge is aligned with the anchor's right edge, so the menu extends to the left |
+| `'top-right'` (default with `ui.useAddToCart`), `'bottom-right'` | The menu's left edge is aligned with the anchor's left edge, so the menu extends to the right |
 | `'top-center'`, `'bottom-center'` | Centered on the anchor |
 | `'top-left-quarter'`, `'bottom-left-quarter'` | Centered, then shifted left by a quarter of the menu width |
 | `'top-right-quarter'`, `'bottom-right-quarter'` | Centered, then shifted right by a quarter of the menu width |
@@ -521,4 +526,4 @@ type LazyMountConfig = {
 
 ---
 
-[← Chapter 1 — Triggers](01-triggers.md) · [Chapter 3 — Side Panel →](03-side-panel.md)
+[← Chapter 2 — Style the widget](02-style-the-widget.md) · [Chapter 4 — Track events →](04-track-events.md)

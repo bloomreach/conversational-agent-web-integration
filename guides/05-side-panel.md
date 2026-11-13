@@ -1,6 +1,6 @@
-[← Back to Chapter 2 — Customize components](02-customize-components.md)
+[← Back to Chapter 4 — Track events](04-track-events.md)
 
-# 3. Side Panel (Desktop AI Mode)
+# 5. Side Panel (Desktop AI Mode)
 
 Desktop AI Mode turns the Clarity chat widget into a resizable side panel on desktop. Instead of floating over the page, the widget becomes a column on the left or right edge of the viewport and the page's own content is pushed to the other side. Shoppers keep browsing while the conversation stays open next to them.
 
@@ -9,9 +9,10 @@ This guide is for the developer and the Engagement admin who integrate the widge
 - **Part 1 — Weblayer settings** are set in the Engagement weblayer (`window.CLARITY_WEBLAYER_CONFIG`). No storefront deployment is needed for them.
 - **Part 2 — Your web page code** lists what the storefront codebase itself has to provide.
 - **Part 3 — Complete example** puts both sides together for a React (Next.js) storefront.
-- **Part 4 — Alternative** covers mounting into a container of your own instead, for layouts the built-in side panel cannot produce.
+- **Part 4 — Multi-page storefronts** covers sites where every navigation is a full page load.
+- **Part 5 — Alternative** covers mounting into a container of your own instead, for layouts the built-in side panel cannot produce.
 
-This feature is for desktop. The widget injects everything it needs into the page: no host markup, container element or CSS is required for the panel itself.
+This feature is for desktop: the widget does not check the viewport itself, so target the weblayer at desktop devices. The widget injects everything it needs into the page: no host markup, container element or CSS is required for the panel itself.
 
 > **Not the same as the "AI Mode" widget template.** `widget.ui.desktopTemplate: 'ai_mode'` (this guide) is a layout for the default widget. `widgetTemplate: 'ai_mode'` selects a different widget bundle (the full-screen conversational search). Leave `widgetTemplate` unset when following this guide.
 
@@ -25,11 +26,11 @@ This feature is for desktop. The widget injects everything it needs into the pag
 | Feature | Weblayer setting | Page code |
 |---|---|---|
 | Side panel layout | [`widget.ui.desktopTemplate`](#11-turn-on-the-side-panel), [`widget.ui.desktopTemplateOptions`](#12-panel-options) | [Layout checklist](#21-page-layout-checklist-required) |
-| Open / close button on a listing page (optional) | [`plp_banner` trigger + `PARAM_isToggleButton`](#13-plp-banner-as-the-openclose-button-optional) | Optional: [control from page code](#22-open-close-and-observe-the-panel-from-page-code-optional) |
-| Product clicks routed through your SPA router | [`widget.ui.fn.goToProductPage`](#14-route-product-clicks-through-your-router) | [Router bridge](#25-expose-your-spa-router) |
-| Search results shown on your own product grid | [`widget.ui.fn.hideSearchResultCarousels`](#15-hand-search-results-to-the-page) | [Results listener](#23-render-widget-search-results-on-your-own-grid) |
-| Page context (current product, category) | [`productIds`, `pageType` or `getContext`](#16-page-context) | [Live page data](#24-expose-live-page-context) for single-page apps |
-| PDP awareness (product questions, context banner) | [`showPDPEnterQuestions`, `showContextStateChange`](#17-pdp-awareness-flags) | Same as page context |
+| Product clicks routed through your SPA router | [`widget.ui.fn.goToProductPage`](#13-route-product-clicks-through-your-router) | [Router bridge](#25-expose-your-spa-router) |
+| Search results shown on your own product grid | [`widget.ui.fn.hideSearchResultCarousels`](#14-hand-search-results-to-the-page) | [Results listener](#23-render-widget-search-results-on-your-own-grid) |
+| Page context (current product, category) | [`productIds`, `pageType` or `getContext`](#15-page-context) | [Live page data](#24-expose-live-page-context) for single-page apps |
+| PDP awareness (product questions, context banner) | [`showPDPEnterQuestions`, `showContextStateChange`](#16-pdp-awareness-flags) | Same as page context |
+| Panel kept open across full page loads (multi-page sites) | [Show the widget on every page](#41-what-happens-on-a-page-load) | [Results across a page load](#43-search-results-across-a-page-load) |
 
 ---
 
@@ -47,9 +48,7 @@ widget: {
 }
 ```
 
-Set `desktopTemplate` directly under `widget.ui`. It is not read from `widget.ui.desktop`.
-
-With this set, the widget mounts as a column next to the page content. Everything already in `<body>` — including your site header and footer — moves into the other column. If they need to stay outside the split, mount into a container of your own instead: see [Part 4](#part-4--alternative-mount-into-your-own-container).
+With this set, the widget mounts as a column next to the page content. Everything already in `<body>` — including your site header and footer — moves into the other column. If they need to stay outside the split, mount into a container of your own instead: see [Part 5](#part-5--alternative-mount-into-your-own-container).
 
 The panel starts collapsed (width 0) and slides open when the chat opens; it collapses again when the chat is closed, minimized or hidden. While open, a thin handle on the panel's inner edge lets the shopper drag it wider or narrower.
 
@@ -80,24 +79,9 @@ widget: {
 
 A width the shopper set by dragging is kept only while the panel is open. When the chat closes, the panel returns to `width` on its next open.
 
-### 1.3 PLP banner as the open/close button (optional)
+### 1.3 Route product clicks through your router
 
-On a product listing page, the `plp_banner` trigger can act as a toggle for the panel: one click opens the chat, the next click closes it.
-
-```javascript
-triggerTemplate: 'plp_banner',
-trigger: {
-  PARAM_isToggleButton: true,
-},
-```
-
-With `PARAM_isToggleButton: true`, a click while the widget is visible hides it (the panel collapses) and logs a `badge_hidden` event; a click while it is hidden shows and opens it, sending the banner's text as the opening message. Without the flag, every click opens the chat.
-
-Configure the banner's placement, texts and image as for any PLP banner; see [`trigger` — PLP Banner](../reference/weblayer-config.md#plp-banner-only). If you want your own button instead of the banner, drive the panel from page code as described in [2.2](#22-open-close-and-observe-the-panel-from-page-code-optional).
-
-### 1.4 Route product clicks through your router
-
-When a shopper clicks a product in the chat, the widget navigates to the product URL, which reloads the page. On a single-page app you can keep the panel open by taking over the navigation:
+When a shopper clicks a product in the chat, the widget opens the product URL: in a new tab by default on desktop ([`ui.openPdpInNewTab`](../reference/widget-config.md#feature-flags)), or in the same tab, which reloads the page. On a single-page app you can keep the shopper in the same tab with the panel open by taking over the navigation:
 
 ```javascript
 widget: {
@@ -114,9 +98,9 @@ widget: {
 
 `variant` is the clicked item, `config.parentProduct` is the product that owns it (the same object when there is no separate variant), and `config.source` is where the click came from (`'product_card'`, `'mini_pdp_product'`, …). Analytics events and the "Now viewing product …" banner are still produced by the widget; only the navigation is yours. `window.__clarityRouter` is provided by the page, see [2.5](#25-expose-your-spa-router).
 
-Links inside assistant text messages do not go through `goToProductPage`; they open as normal links. See [`ui.pdpLinkRegex`](../reference/widget-config.md#feature-flags), [`ui.openPdpInNewTab`](../reference/widget-config.md#feature-flags) and [`ui.fn.getLinkOptions`](./02-customize-components.md#fngetlinkoptions) for how those links are handled.
+Links inside assistant text messages do not go through `goToProductPage`; they open as normal links. See [`ui.pdpLinkRegex`](../reference/widget-config.md#feature-flags), [`ui.openPdpInNewTab`](../reference/widget-config.md#feature-flags) and [`ui.fn.getLinkOptions`](./03-customize-components.md#fngetlinkoptions) for how those links are handled.
 
-### 1.5 Hand search results to the page
+### 1.4 Hand search results to the page
 
 On a storefront with its own product grid, the page renders the search results instead of the chat. This is the default once `desktopTemplate: 'ai_mode'` is set. For every result batch that came from a plain search (`result_source: 'SEARCH'`) the widget then:
 
@@ -137,7 +121,7 @@ widget: {
 }
 ```
 
-While it returns `false`, search results render in the chat like any other carousel and are not sent to the page. While it returns `true`, or when it is not set, throws or returns anything but a boolean, they are handed to the page as described above. To keep every carousel inside the side panel, return `false` everywhere. See [`fn.hideSearchResultCarousels`](./02-customize-components.md#fnhidesearchresultcarousels).
+While it returns `false`, search results render in the chat like any other carousel and are not sent to the page. While it returns `true`, or when it is not set, throws or returns anything but a boolean, they are handed to the page as described above. To keep every carousel inside the side panel, return `false` everywhere. See [`fn.hideSearchResultCarousels`](./03-customize-components.md#fnhidesearchresultcarousels).
 
 If you prefer a callback over a DOM event, register the hook in the weblayer instead:
 
@@ -152,7 +136,9 @@ widget: {
 }
 ```
 
-### 1.6 Page context
+The callback is called while this weblayer's banner is the active source; to set it once for every weblayer on the page, see [Hooks on a weblayer page](../reference/hooks.md#hooks-on-a-weblayer-page). The window event fires whichever weblayer is active.
+
+### 1.5 Page context
 
 The widget asks the page for its context (current product, cart, category) through two functions, `getContext()` and `getCategoryInfo()`. The weblayer builds them for you from flat fields:
 
@@ -171,7 +157,7 @@ widget: {
 
 | Field | Feeds | Notes |
 |---|---|---|
-| `productIds` + `productIdsType` | `getContext().currentItemId` / `currentItemIds` | With `pageType: 'pdp'` (or a single id), the id becomes `currentItemId`, which the PDP flags in 1.7 rely on. |
+| `productIds` + `productIdsType` | `getContext().currentItemId` / `currentItemIds` | With `pageType: 'pdp'` (or a single id), the id becomes `currentItemId`, which the PDP flags in 1.6 rely on. |
 | `widget.pageType` | `getContext()` | `'pdp'`, `'plp'` or `'cart'`. |
 | `widget.pdpUrl` | `getContext().pdpUrl` | Optional. The current product page URL. |
 | `widget.plpCategoryName`, `plpCategoryDescription`, `urlQueryParams` | `getCategoryInfo()` | Optional. The listing page's category, used to answer category questions. |
@@ -194,7 +180,7 @@ widget: {
 
 `getContext` and `getCategoryInfo` are top-level `widget` fields, not `widget.ui.fn` entries. The page side of this is described in [2.4](#24-expose-live-page-context).
 
-### 1.7 PDP awareness flags
+### 1.6 PDP awareness flags
 
 With the panel open next to the page, the shopper moves between product pages while the chat stays visible. Two flags make the widget react to that.
 
@@ -211,13 +197,13 @@ widget: {
 }
 ```
 
-**`showPDPEnterQuestions`** — when the widget initializes on a page, whenever the chat is opened, and on every SPA route change (`history.pushState` / `replaceState` / `popstate`), it compares `getContext().currentItemId` with the last product it told the backend about. If the product changed, it sends the new context followed by a product-view event, and the backend answers with that product's questions as quick replies under a "Now viewing product …" banner. This works for shoppers who already have a conversation: viewing a page never starts a new chat, so a shopper who has not sent a message yet sees nothing from this flag. The check is skipped when the chat is opened by a trigger that sends a message at the same time (such as the PLP banner in 1.3), because that message already carries the new context. After a route change the widget waits up to 3 seconds for `getContext().currentItemId` to change, so a `getContext` that reads the product off the DOM has time to see the new page. Only one announce runs at a time; a second trigger arriving while one is in flight is ignored.
+**`showPDPEnterQuestions`** — while the chat is open: when the widget initializes on a page, whenever the chat is opened, and on every SPA route change (`history.pushState` / `replaceState` / `popstate`), it compares `getContext().currentItemId` with the last product it told the backend about. If the product changed, it sends the new context followed by a product-view event, and the backend answers with that product's questions as quick replies under a "Now viewing product …" banner. This works for shoppers who already have a conversation: viewing a page never starts a new chat, so a shopper who has not sent a message yet sees nothing from this flag. The check is skipped when the chat is opened by a trigger that sends a message at the same time (such as a PLP banner), because that message already carries the new context. After a route change the widget waits up to 3 seconds for `getContext().currentItemId` to change, so a `getContext` that reads the product off the DOM has time to see the new page. Only one announce runs at a time; a second trigger arriving while one is in flight is ignored.
 
 **`showContextStateChange`** — shows a "Page context updated" banner in the chat each time the context sent to the backend has a different product than the previous one. The first context of a conversation never shows the banner. The text is the translation key `pageContextUpdated`; override it through [`widget.ui.translation`](../reference/widget-config.md#uitranslation).
 
 **`stateText.userActionProductClick`** — optional. The banner text for product views and in-widget product clicks. `{product_title}` is replaced with the product's title.
 
-Both flags depend on `getContext()` returning the current product. On a single-page app that means the live-data function from 1.6 and the page work in [2.4](#24-expose-live-page-context).
+Both flags depend on `getContext()` returning the current product. On a single-page app that means the live-data function from 1.5 and the page work in [2.4](#24-expose-live-page-context).
 
 ---
 
@@ -229,11 +215,11 @@ When the side panel is on, the widget restructures the page on load:
 
 ```
 body
-└── #cocoaas-desktop-ai-mode-host              flex row, height: 100dvh
-    ├── #cocoaas-desktop-ai-mode-widget-wrapper   the panel column (resize handle + widget)
-    │     └── #cocoaas-desktop-ai-mode-widget-mount
-    └── #cocoaas-desktop-ai-mode-page-content     everything that was in <body>, moved here
-                                                  flex: 1; overflow-y: auto
+└── #cocoaas-desktop-ai-mode-host              flex row, height: 100dvh (children swapped when the panel is on the left)
+    ├── #cocoaas-desktop-ai-mode-page-content     everything that was in <body>, moved here
+    │                                             flex: 1; overflow-y: auto
+    └── #cocoaas-desktop-ai-mode-widget-wrapper   the panel column (resize handle + widget)
+          └── #cocoaas-desktop-ai-mode-widget-mount
 ```
 
 All of `<body>`'s existing children are moved into `#cocoaas-desktop-ai-mode-page-content`, which scrolls on its own. `<body>` and `window` no longer scroll. Check the following in your page before enabling the panel:
@@ -249,13 +235,13 @@ The panel column carries these classes, in case you want to style around it:
 |---|---|
 | `#cocoaas-desktop-ai-mode-widget-mount.cocoaas-desktop-ai-mode-open` | While the chat is open. |
 | `#cocoaas-desktop-ai-mode-widget-mount.cocoaas-desktop-ai-mode-dragging` | While the shopper drags the resize handle. |
-| `#cocoaas-desktop-ai-mode-widget-wrapper.cocoaas-desktop-ai-mode-side-left` / `-side-right` | Which edge of the panel faces the page content (border side). |
+| `#cocoaas-desktop-ai-mode-widget-wrapper.cocoaas-desktop-ai-mode-side-left` / `-side-right` | While the chat is open: which edge of the panel faces the page content (border side). |
 
 The full tree is in [`styles.md`](../reference/styles.md#desktop-ai-mode-side-panel-cocoaas-desktop-ai-mode-).
 
 ### 2.2 Open, close and observe the panel from page code (optional)
 
-The panel follows the widget's state: it opens when the chat is opened and collapses when the chat is closed, minimized or hidden. Any button on your page can drive it through the Clarity API, as an alternative to the PLP banner in [1.3](#13-plp-banner-as-the-openclose-button-optional):
+The panel follows the widget's state: it opens when the chat is opened and collapses when the chat is closed, minimized or hidden. Any button on your page can drive it through the Clarity API:
 
 ```javascript
 await window.CLARITY?.call('open_chat')          // open the chat, panel slides open
@@ -276,7 +262,7 @@ See [`runtime-api.md`](../reference/runtime-api.md) for all actions.
 
 ### 2.3 Render widget search results on your own grid
 
-Needed when search results are [handed to the page](#15-hand-search-results-to-the-page) (the default under `desktopTemplate: 'ai_mode'`). Listen for the `Clarity:searchedProducts` event, keep the products, and show them on your results page.
+Needed when search results are [handed to the page](#14-hand-search-results-to-the-page) (the default under `desktopTemplate: 'ai_mode'`). Listen for the `Clarity:searchedProducts` event, keep the products, and show them on your results page.
 
 ```javascript
 window.addEventListener('Clarity:searchedProducts', (event) => {
@@ -309,7 +295,7 @@ Notes for the product mapping:
 
 ### 2.4 Expose live page context
 
-Needed for the [page context](#16-page-context) functions and the [PDP awareness flags](#17-pdp-awareness-flags) on a single-page app. The widget only ever calls `getContext()` and `getCategoryInfo()`; it does not watch the URL or the router. Your page has to keep the data those functions read up to date on every navigation.
+Needed for the [page context](#15-page-context) functions and the [PDP awareness flags](#16-pdp-awareness-flags) on a single-page app. The widget only ever calls `getContext()` and `getCategoryInfo()`; it does not watch the URL or the router. Your page has to keep the data those functions read up to date on every navigation.
 
 A simple pattern is one global object that every page view writes to on mount:
 
@@ -325,13 +311,13 @@ useEffect(() => {
 }, [category.name])
 ```
 
-The weblayer's `getContext` / `getCategoryInfo` functions from 1.6 then read `window.clarityPage`. Clear `currentProductId` when leaving a product page, otherwise the widget keeps treating the last product as the current one.
+The weblayer's `getContext` / `getCategoryInfo` functions from 1.5 then read `window.clarityPage`. Clear `currentProductId` when leaving a product page, otherwise the widget keeps treating the last product as the current one.
 
 The widget reads the context when it initializes, when the chat is opened, before every message the shopper sends, and — with `showPDPEnterQuestions` on — after every SPA route change. It detects route changes by wrapping `history.pushState` / `replaceState` and listening for `popstate`, so any router that goes through the History API is covered without you wiring anything up. It then waits up to 3 seconds for `getContext().currentItemId` to report the new product, which is enough for a store that updates the global in a mount effect. A `getContext` that needs longer than that (for example one waiting on its own fetch) will miss the announce for that navigation.
 
 ### 2.5 Expose your SPA router
 
-Needed when [`goToProductPage`](#14-route-product-clicks-through-your-router) is set. Publish a router object on `window` so the weblayer function can call it. For Next.js (app router):
+Needed when [`goToProductPage`](#13-route-product-clicks-through-your-router) is set. Publish a router object on `window` so the weblayer function can call it. For Next.js (app router):
 
 ```jsx
 'use client'
@@ -378,12 +364,6 @@ A Next.js (app router) storefront with product, category and search pages, wired
 ```javascript
 window.CLARITY_WEBLAYER_CONFIG = {
   ...
-
-  triggerTemplate: 'plp_banner',
-  trigger: {
-    ...
-    PARAM_isToggleButton: true,
-  },
 
   widget: {
     ...
@@ -550,16 +530,9 @@ export default function CategoryPage({ category, products }) {
     })
   }, [category, products])
 
-  return (
-    <>
-      <div id="listing-toolbar" />
-      {/* product grid */}
-    </>
-  )
+  return <>{/* product grid */}</>
 }
 ```
-
-`#listing-toolbar` is the element the PLP banner's `PARAM_parentElement` points to.
 
 **`src/app/search/page.jsx`** — the results route the bridge navigates to:
 
@@ -588,26 +561,161 @@ Clearing the results when the page unmounts keeps a later back navigation to `/s
 
 ---
 
-## Part 4 — Alternative: mount into your own container
+## Part 4 — Multi-page storefronts
 
-### 4.1 When to use it
+On a storefront where every link is a full page load (server-rendered pages, no client-side router), the browser discards the page on each navigation and the widget starts again on the next one. Parts 1 and 2 still apply; this part covers what is different.
+
+### 4.1 What happens on a page load
+
+- **The conversation is kept.** The widget restores it on the new page.
+- **The open state is kept, but the widget starts hidden.** Whether the chat was open is remembered in the browser, and it opens again as soon as something on the new page shows the widget. A trigger weblayer loads the widget hidden and shows it only when the shopper uses the trigger, so with triggers alone the panel stays collapsed after every navigation.
+- **The panel is built again.** `<body>` is restructured as described in [2.1](#21-page-layout-checklist-required), and the panel slides open from width 0, pushing the page content aside. Expect this reflow on every page load while the chat is open.
+- **A dragged width is not kept.** The panel opens at `width` from [1.2](#12-panel-options) on each page.
+
+To keep the chat open across pages, show the widget on every page the shopper can reach from the chat. One way is a follow-up weblayer with `directShowWidget: true`: the `follow_up` template loads the widget without any trigger UI, and the flag is what shows it as soon as it has initialized:
+
+```javascript
+window.CLARITY_WEBLAYER_CONFIG = {
+  ...
+  triggerTemplate: 'follow_up',
+  directShowWidget: true,
+  widget: {
+    ...
+    getContext: ...,        // this page's context, see 1.5 and 4.2
+    getCategoryInfo: ...,
+    ui: {
+      desktopTemplate: 'ai_mode',
+      // the same desktopTemplateOptions, flags and fn as in your other weblayers
+    },
+  },
+}
+```
+
+[`directShowWidget: true`](../reference/weblayer-config.md#lifecycle) on any other weblayer of the page has the same effect, and so does `show_badge` from page code. Do not wait for `Clarity:initialized` when `window.CLARITY` already exists: a call made before the widget has initialized is queued and run once it has ([Runtime API](../reference/runtime-api.md)), and the event may already have fired by the time your script runs. Only when the weblayer has not created `window.CLARITY` yet can the event still be ahead of you:
+
+```javascript
+const showClarity = () => window.CLARITY.call('show_badge')
+if (window.CLARITY) {
+  showClarity()
+} else {
+  window.addEventListener('Clarity:initialized', showClarity, { once: true })
+}
+```
+
+Whichever you use:
+
+- With the default [`initialState`](../reference/widget-config.md#initial-state), the panel opens by itself whenever the widget is shown to a visitor who has not chatted yet, in each new browser tab (not when `suppressInitialMessage` is set or the home screen shows). After that it reopens only if the shopper left the previous page with the chat open; otherwise it stays collapsed. While collapsed, nothing of the widget is on screen (the badge is clipped together with the panel), so the shopper reopens it from a trigger or from a button of your own ([2.2](#22-open-close-and-observe-the-panel-from-page-code-optional)).
+- Use the same `desktopTemplate` and `desktopTemplateOptions` in every weblayer that can run on the same page. They all share one widget and one side panel.
+- Leave [`PARAM_initialState`](../reference/widget-config.md#initial-state) at its default. `3` (force-minimized) closes the chat on every page load, so the panel would collapse each time the shopper navigates.
+- Every weblayer with the side panel restructures the page as in [2.1](#21-page-layout-checklist-required) as soon as the widget loads, chat open or not, for every visitor it runs for. A follow-up weblayer on every page does that site-wide. If visitors who never used the chat should be spared, limit the weblayer's audience, for example to visitors with a [`clarity` event](../reference/analytics-events.md).
+
+### 4.2 What changes in Parts 1 and 2
+
+| Section | On a multi-page site |
+|---|---|
+| [1.3](#13-route-product-clicks-through-your-router), [2.5](#25-expose-your-spa-router) | No router bridge. Unset, a product click opens the product page in a new tab on desktop ([`ui.openPdpInNewTab`](../reference/widget-config.md#feature-flags)), and the panel stays open on the current page. To open it in the same tab instead, set `openPdpInNewTab: false`, or set `goToProductPage` to a plain redirect such as `window.location.assign(config.parentProduct.url)`; the panel then comes back on the product page as described in [4.1](#41-what-happens-on-a-page-load). |
+| [1.5](#15-page-context), [2.4](#24-expose-live-page-context) | Still recommended: set `getContext` / `getCategoryInfo` reading the page's own data, as in 1.5. The flat fields (`productIds`, `widget.pageType`, …) are read again on each page load and also work, but miss changes made without a page load, such as picking another variant. Either way, set them in every weblayer that can run on the page, the follow-up one included: the widget reads the context of the weblayer that last drove it, which on a page where no trigger is clicked is the follow-up weblayer. |
+| [1.6](#16-pdp-awareness-flags) | Works unchanged: the product check runs each time the widget initializes, which is on every page load, as long as the chat is open. |
+
+### 4.3 Search results across a page load
+
+When search results are [handed to the page](#14-hand-search-results-to-the-page), the listener from [2.3](#23-render-widget-search-results-on-your-own-grid) cannot keep the products in memory: loading your results page discards them. Store them in `sessionStorage` instead and navigate with a normal page load.
+
+`sessionStorage` holds about 5 MB per origin in current browsers, shared with everything else your site keeps there, and `setItem` throws once it is full. A product as the widget sends it carries every attribute configured for the persona, so store only the fields your product card renders and cap the number of products:
+
+```javascript
+window.addEventListener('Clarity:searchedProducts', (event) => {
+  const detail = event.detail
+  if (!detail || detail.from_history) return
+
+  const products = (detail.products_data ?? [])
+    .filter((batch) => batch.result_source === 'SEARCH')
+    .flatMap((batch) => batch.data ?? [])
+    .slice(0, 48) // as many as your results grid shows
+    .map((p) => ({
+      id: p.id,
+      title: p.title,
+      url: p.url,
+      image: p.image,
+      price: p.price,
+      originalPrice: p.originalPrice,
+    }))
+  if (!products.length) return
+
+  try {
+    sessionStorage.setItem('clarityResults', JSON.stringify(products))
+  } catch {
+    // storage full or blocked: the results page falls back to the widget's replay, see below
+    try {
+      sessionStorage.removeItem('clarityResults')
+    } catch {}
+  }
+  window.location.assign('/search?fromClarity=1')
+})
+```
+
+Include this listener on every page, since the shopper can ask from any of them. The event fires once the assistant's answer is complete, so the navigation does not cut off the reply.
+
+Navigate even when storing fails. The chat does not show these results: they were handed to the page, so a shopper left on the current page sees an answer without its products. The results are not lost, though. Each time the widget loads on a page it replays the conversation's search results that are handed to the page, as a `searchedProducts` event with `from_history: true`, and the results page can take them from there.
+
+On the results page, read the stored products back, and fall back to the replay when there are none:
+
+```javascript
+const readStoredResults = () => {
+  try {
+    return JSON.parse(sessionStorage.getItem('clarityResults') ?? 'null')
+  } catch {
+    return null
+  }
+}
+
+const fromClarity = new URLSearchParams(window.location.search).get('fromClarity') === '1'
+const stored = fromClarity ? readStoredResults() : null
+
+if (stored) {
+  renderProducts(stored)
+} else if (fromClarity) {
+  const onReplay = (event) => {
+    if (!event.detail?.from_history) return
+    clearTimeout(timer)
+    window.removeEventListener('Clarity:searchedProducts', onReplay)
+    const batches = (event.detail.products_data ?? []).filter((batch) => batch.result_source === 'SEARCH')
+    renderProducts(batches.at(-1)?.data ?? [])
+  }
+  window.addEventListener('Clarity:searchedProducts', onReplay)
+  const timer = setTimeout(() => {
+    window.removeEventListener('Clarity:searchedProducts', onReplay)
+    renderProducts([]) // nothing to replay: leave the loading state
+  }, 10000)
+}
+```
+
+`renderProducts` stands for your own product card rendering. The replay covers the whole conversation and does not say which answer a batch came from, so the snippet takes the last batch, which is the latest answer's results when that answer returned a single batch. It is dispatched once, while the widget initializes and before `Clarity:initialized`, and cannot be requested again, so register the listener synchronously when your script starts, not after your own data has loaded. Whether your script runs before the widget initializes depends on your page: with the Engagement snippet inline and your bundle deferred it does, since the replay follows several network round trips after the snippet; if your script can start later than that, a missed replay cannot be recovered and the timeout is what gets the shopper out. The replay arrives only after the widget has loaded and fetched the conversation, so show a loading state until then, and leave it after the timeout: when neither the stored results nor the replay arrive, the shopper needs a way to ask again, for example an empty grid with a button that opens the chat.
+
+The mapping and clean-up notes in [2.3](#23-render-widget-search-results-on-your-own-grid) apply here as well: remove `clarityResults` when the shopper runs a search from your own search box.
+
+---
+
+## Part 5 — Alternative: mount into your own container
+
+### 5.1 When to use it
 
 `desktopTemplate: 'ai_mode'` moves **everything** in `<body>` into the left column of its own flex row. That is what makes it zero-markup, but it also means your site header, nav and footer end up inside that column and are as wide as it is. If the design calls for a full-width header sitting above the panel, a footer outside the split, or a panel confined to one region of the page, mount the widget into a container of your own instead.
 
-### 4.2 What changes and what does not
+### 5.2 What changes and what does not
 
-Internally `desktopTemplate: 'ai_mode'` only makes the widget resolve `document.body` as its parent element, so handing it a container of your own produces the **same widget rendering**: square corners and no drop shadow, filling the container, desktop `ui` config at any viewport width, mini PDP and live chat rendered inside the panel rather than beside it, and the close button hidden unless [`ui.showCloseWhenInElement`](../reference/widget-config.md#feature-flags) is set.
+For the widget's own rendering, `desktopTemplate: 'ai_mode'` behaves like a parent element (the widget mounts into its own panel column), so handing it a container of your own produces the **same widget rendering**: square corners and no drop shadow, filling the container, desktop `ui` config at any viewport width, mini PDP and live chat rendered inside the panel rather than beside it, and the close button hidden unless [`ui.showCloseWhenInElement`](../reference/widget-config.md#feature-flags) is set.
 
-Everything in Parts 1 to 3 still applies, except:
+Everything in Parts 1 to 4 still applies, except:
 
 | Section | With your own container |
 |---|---|
-| [1.1](#11-turn-on-the-side-panel), [1.2](#12-panel-options) | Replaced by `widget.PARAM_clarityParentElement` (see [4.6](#46-weblayer-config)). `desktopTemplate` and `desktopTemplateOptions` are not set. |
+| [1.1](#11-turn-on-the-side-panel), [1.2](#12-panel-options) | Replaced by `widget.PARAM_clarityParentElement` (see [5.6](#56-weblayer-config)). `desktopTemplate` and `desktopTemplateOptions` are not set. |
 | [2.1](#21-page-layout-checklist-required) | Does not apply. Nothing is reparented, `window` keeps scrolling, and `position: fixed` elements behave normally. |
 
 What you take on: the flex layout, the open and close animation, and the drag handle. The rest of this part is a working implementation of all three.
 
-### 4.3 Markup
+### 5.3 Markup
 
 Two nested elements. The outer one holds the resize handle, the inner one is what you hand to the widget — the widget fills it completely with its own markup, so anything you place inside it is painted over.
 
@@ -624,7 +732,7 @@ Two nested elements. The outer one holds the resize handle, the inner one is wha
 </div>
 ```
 
-### 4.4 CSS
+### 5.4 CSS
 
 ```css
 body       { display: flex; flex-direction: column; height: 100dvh; margin: 0 }
@@ -671,7 +779,7 @@ body       { display: flex; flex-direction: column; height: 100dvh; margin: 0 }
 
 While the chat is minimized the widget still renders its own round badge into the container; a mount collapsed to `width: 0` with `overflow: hidden` clips it, which is also what the built-in side panel does. If you want that badge visible, collapse the panel to the badge's width instead of to zero.
 
-### 4.5 JavaScript
+### 5.5 JavaScript
 
 Two jobs: mirror the widget's open state onto the panel, and implement the drag.
 
@@ -726,7 +834,7 @@ If you only want the open and close animation and no drag handle, you can skip t
 
 `clarity-chat-open` is a documented modifier on `clarity-resizable-chat-wrapper`, which the widget renders only while the chat is open. See [`styles.md`](../reference/styles.md#clarity-resizable-chat-wrapper). The `ClarityState:widgetState` event above is the more stable of the two, so prefer it when you are writing JavaScript anyway.
 
-### 4.6 Weblayer config
+### 5.6 Weblayer config
 
 Point the widget at the inner container and drop the side-panel keys. Everything else from [3.1](#31-weblayer-side) stays as it is.
 
@@ -756,17 +864,18 @@ The container must already be in the DOM when the widget mounts: `PARAM_clarityP
 
 - **Slow page context on navigation.** After an SPA route change the widget waits up to 3 seconds for `getContext()` to report the new product before giving up on the announce. A `getContext` backed by its own asynchronous fetch can exceed that; publish the id as early as you can (see [2.4](#24-expose-live-page-context)).
 - **PDP questions need an existing conversation.** `showPDPEnterQuestions` only acts for shoppers who have sent at least one message. Viewing pages never creates a conversation, so first-time visitors get product questions from the trigger they click, not from this flag.
+- **Reflow on every page load of a multi-page site.** The panel is rebuilt and slides open again after each navigation while the chat is open; see [4.1](#41-what-happens-on-a-page-load).
 - **Stored search results are yours to clear.** The widget does not tell the page when a result set is stale; see the notes in [2.3](#23-render-widget-search-results-on-your-own-grid).
 
 ## Reference
 
 - [`weblayer-config.md`](../reference/weblayer-config.md) — every weblayer field, trigger templates and the `widget` block.
 - [`widget-config.md`](../reference/widget-config.md) — every `ui` field, including the [side panel](../reference/widget-config.md#desktop-ai-mode-side-panel) and [feature flags](../reference/widget-config.md#feature-flags).
-- [Customize components](./02-customize-components.md) — `ui.fn` overrides such as `goToProductPage`.
+- [Customize components](./03-customize-components.md) — `ui.fn` overrides such as `goToProductPage`.
 - [`hooks.md`](../reference/hooks.md) — hook payloads, including `searchedProducts`.
 - [`runtime-api.md`](../reference/runtime-api.md) — `window.CLARITY.call` actions.
 - [`styles.md`](../reference/styles.md) — DOM ids and classes for custom styling.
 
 ---
 
-[← Chapter 2 — Customize components](02-customize-components.md) · [Chapter 4 — Context-aware pricing →](04-context-aware-pricing.md)
+[← Chapter 4 — Track events](04-track-events.md) · [Chapter 6 — Context-aware pricing →](06-context-aware-pricing.md)

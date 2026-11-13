@@ -6,11 +6,11 @@ Both widget templates read it: the **default widget** and **AI Mode**, selected 
 
 **Two ways to set it:**
 - **Standalone** — define it directly on the page before loading the Clarity bundle script.
-- **Via weblayer** — when the Engagement weblayer is injected, most fields are populated automatically from [`window.CLARITY_WEBLAYER_CONFIG.widget`](./weblayer-config.md#widget--clarity-widget-settings). Direct writes in `widget.*` take priority over the individual `PARAM_*` shorthands.
+- **Via weblayer** — when the Engagement weblayer is injected, most fields are populated automatically from [`window.CLARITY_WEBLAYER_CONFIG.widget`](./weblayer-config.md#widget--clarity-widget-settings). Direct writes in `widget.*` take priority over the individual `PARAM_*` shorthands, except the seven style shorthands (`PARAM_zIndex`, `PARAM_widgetFont`, `PARAM_clarityBackgroundColor`, `PARAM_bubbleBackgroundColor`, `PARAM_bubbleFontColor`, `PARAM_badgeFontColor`, `PARAM_badgeBackgroundColor`), which override the matching `widget.ui` key when set; a value under `widget.ui.desktop` / `widget.ui.mobile` still applies.
 
 **Related docs:**
 - [`weblayer-config.md`](./weblayer-config.md) — trigger UI and how it populates this config
-- [Customize components](../guides/02-customize-components.md) — `ui.component` and `ui.fn` override signatures
+- [Customize components](../guides/03-customize-components.md) — `ui.component` and `ui.fn` override signatures
 
 **Required fields:** `projectId`, `personaId`, `defaultCurrency`
 
@@ -51,10 +51,10 @@ getContext: () => ({
   currentItemIds?: string[]     // IDs of products on the current page
   currentItemId?: string        // Single product ID for a PDP page
   currentItemIdsType?: 'product_id' | 'item_id'
-  userContextFilter?: Record<string, any>  // (reserved, not used currently)
+  userContextFilter?: Record<string, string | string[] | boolean | boolean[]>  // catalog attribute filters, see below
   pdpUrl?: string               // When hidePdpLink is true, links matching this URL are suppressed
-  miniPageProduct?: any
-  remove?: any
+  miniPageProduct?: string
+  remove?: ('pageList' | 'pageProduct' | 'miniPageProduct' | 'shoppingCartList')[]
   // Context-aware pricing: the price attributes that apply to this shopper. Only `attributeName`
   // and `primary` are sent to the backend. See the Context-Aware Pricing guide.
   priceAttributesToUse?: { attributeName: string; primary?: boolean; attachedTo?: string; displayName?: string }[]
@@ -62,7 +62,9 @@ getContext: () => ({
 })
 ```
 
-For `priceAttributesToUse` and `userPricingContext`, see [Context-Aware Pricing](../guides/04-context-aware-pricing.md).
+For `priceAttributesToUse` and `userPricingContext`, see [Context-Aware Pricing](../guides/06-context-aware-pricing.md).
+
+`userContextFilter` restricts every product search the agent runs in this chat (search, similar products, category suggestions) and the search applies its entries together: each key is a catalog attribute name, each value one allowed value, a list of allowed values, or a boolean. `{ brand: ['acme', 'globex'], in_stock: true }` keeps only in-stock products of those two brands. Weblayer-delivered widgets take it from the weblayer's `userContextFilter` field when `widget.getContext` is not set.
 
 ### `getUserInfo(): { uid?: string }`
 
@@ -82,7 +84,7 @@ getCategoryInfo: () => ({
 
 ### `getCurrentCustomerId(): string`
 
-Returns the current customer's ID. Used when creating a new user session in the backend.
+Returns the current customer's ID, normally the Engagement cookie (`exponea.configuration.customer.cookie`). Called on every chat request, the first time as soon as the widget starts (before the chat is opened), and used per turn as the customer's Engagement identity, so it must return the same value on every call.
 
 ### `bannerSettings`
 
@@ -107,6 +109,9 @@ bannerSettings: {
     initialState?: 0 | 1 | 2 | 3
     parentElement?: string
     fullMode?: boolean
+
+    // Function hooks for this source, laid over the top-level hooks while it is active
+    hooks?: { searchedProducts?, processingMessage?, initialMessage?, reloadStarted? }
   }
 }
 ```
@@ -125,10 +130,15 @@ initialState?: 0 | 1 | 2 | 3
 
 | Value | Behavior |
 |---|---|
-| `0` (default) | Minimized on first load. Expands automatically if an `initialMessage` is present. On subsequent visits, restores previous state. |
-| `1` | Always starts minimized. On subsequent visits, restores previous state. |
-| `2` | Expanded on first load. On subsequent visits, restores previous state. |
-| `3` | Always force-minimized on every load. |
+| `0` (default) | Starts minimized, then expands on every device once the first message of a new chat has loaded (not when `suppressInitialMessage` is set or the home screen shows). |
+| `1` | Starts minimized. |
+| `2` | Expanded on every page load, also after the shopper minimized it, except on the full-screen mobile widget, where it starts minimized. |
+| `3` | Minimized on every page load, with no state restored and also with the `mobile_pdp` template. |
+
+The full-screen mobile widget is the widget on a phone-width screen without a `parentElement`, or with `fullMode`.
+It restores nothing: every page load starts minimized, except with the `mobile_pdp` template, which starts expanded
+unless `initialState` is `3`. Everywhere else, later page loads with `0` or `1` restore whether the shopper left the
+chat open or minimized; "starts" above is the first load.
 
 Set via weblayer as [`widget.PARAM_initialState`](./weblayer-config.md#widget--clarity-widget-settings).
 
@@ -181,7 +191,7 @@ All colors accept any valid CSS color value.
 | `zIndex` | `999999` | CSS `z-index` for the widget container. |
 | `font` | `'Inter, Arial, Helvetica, sans-serif'` | Font family for all widget text. |
 | `messagesAtTop` | `false` | If `true`, new messages appear from the top rather than the bottom. |
-| `verticalPrompts` | desktop `true`, mobile `false` | If `true`, prompt/suggestion buttons stack vertically. Defaults to `true` on desktop and `false` (horizontal) on mobile. |
+| `verticalPrompts` | desktop `true`, mobile `false` | If `true`, prompt/suggestion buttons stack vertically. Unset, the prompts in the chat flow stack on desktop and run horizontally on mobile; the fixed bottom bar runs horizontally unless this is `true`. |
 | `legalNotice` | — | Adds a legal notice string to the widget footer. See also `ui.translation.legalNotice`. |
 | `timeFormatHour12` | `false` | Use 12-hour format for message timestamps. |
 
@@ -216,7 +226,7 @@ All colors accept any valid CSS color value.
 
 | Field | Default | Description |
 |---|---|---|
-| `sessionExpiryHours` | `720` (30 days) | Hours of inactivity (no user message) before the session is cleared. |
+| `sessionExpiryHours` | `720` (30 days) | Hours of inactivity (no user message) before the session is cleared. `0` or less disables expiry. |
 | `hideBubbleResetInterval` | `24` | Minimum hours between showing the same initial message bubble. |
 | `aiProductQuestionsLimit` | `3` | **Both templates.** Maximum number of AI-generated question buttons shown per response. In AI Mode, caps the question buttons in the mini PDP (`ProductQuickView`). |
 | `enableAgentName` | — | Show the agent's name alongside the assistant label in messages. |
@@ -227,12 +237,13 @@ All colors accept any valid CSS color value.
 | `hideCompareButton` | — | When enabled, suppresses the "Compare" prompt button entirely, in both the chat flow and the fixed bottom bar. |
 | `showViewMoreInChat` | — | When enabled, renders the "Show more" prompt inline in the chat flow (alongside the Compare button, using the same placement rule) instead of in the fixed bottom bar. Independent of `showQRInChat`. Shown under the same conditions as the fixed-bottom variant: the most recent assistant response includes a carousel and either the response carries a SHOW_MORE action or `alwaysShowViewMore` is set. |
 | `enableMiniPDP` | — | Enable the mini product detail panel when a product card is clicked. |
+| `enableSendingMessageWhileStreaming` | — | Keep the composer enabled while an answer streams. A plain text message sent then is shown at once and interrupts the answer in progress: the agent stops that turn and answers the newest message, with the earlier ones in the history. An upload or a message to a live agent is not sent while an answer streams; the composer keeps it until the turn ends. |
 | `openPdpInNewTab` | desktop `true`, mobile `false` | Open product links in a new browser tab. Defaults to `true` on desktop, `false` on mobile. For links in a response (text links, product cards, the mini PDP and AI Mode's quick view), [`fn.getLinkOptions`](#function-overrides) can override it per link. |
 | `voiceInput` | — | Allow voice input on mobile via the browser's speech recognition API. |
-| `voiceInputTimeout` | — | Milliseconds of silence before speech recognition stops recording. |
+| `voiceInputTimeout` | `1000` | Milliseconds of silence before speech recognition stops recording. |
 | `enableSuggestionQuestions` | — | Use `initialMessage.placeholderStrings` as rotating suggestion questions; shows 3 random ones after each non-product response. |
 | `alwaysShowViewMore` | — | When the most recent assistant response is a carousel, always render the "Show more" prompt button — regardless of whether the carousel's action would normally qualify for it. |
-| `hideViewMoreIfLessThan` | — | Minimum carousel item count required to render the "Show more" prompt button **and** the [`fn.seeAllResults`](../guides/02-customize-components.md#fnseeallresults) "See all results" button. When set, hides both buttons if the carousel has fewer items than this number. For "Show more": takes priority over `alwaysShowViewMore` and any SHOW_MORE action carried by the response. |
+| `hideViewMoreIfLessThan` | — | Minimum carousel item count required to render the "Show more" prompt button **and** the [`fn.seeAllResults`](../guides/03-customize-components.md#fnseeallresults) "See all results" button. When set, hides both buttons if the carousel has fewer items than this number. For "Show more": takes priority over `alwaysShowViewMore` and any SHOW_MORE action carried by the response. |
 | `supportPriceRange` | — | Read prices from item variants and display a price range (e.g. "$10–$30") in carousel items. Ignored on a card that shows a variant selector (`enableProductCardVariantSelection`): it shows the selected variant's price, as with this flag off. |
 | `showDiscountPercentage` | — | When an item's original price is higher than its (single) price, show a discount badge (e.g. "(-40%)") next to the price in product cards and the mini PDP. No badge is shown for price ranges. With context-aware pricing (`getContext().priceAttributesToUse`) the mini PDP shows no badge while it shows the configured prices, and a product card none while it shows two of them as a range. |
 | `enableLiveChat` | — | Add a live chat option to the header dropdown menu (feature in testing). |
@@ -240,8 +251,8 @@ All colors accept any valid CSS color value.
 | `priceDecimalPlaces` | `2` | **Both templates.** Number of decimal places for price strings in product cards. |
 | `productLinkQueryParams` | — | Query parameters to append to all product links — product cards, the mini PDP and AI Mode's quick view (no leading `&` or `?`; use `&` between params). For links inside assistant text messages, only those matching `pdpLinkRegex` get them. |
 | `pdpLinkRegex` | — | Pattern identifying product-page links inside assistant **text** messages — a plain pattern with no delimiters or flags, matched case-insensitively (e.g. `/p/[^/]+$`). Only a matching link gets `productLinkQueryParams` appended; every other link opens without them. When unset (or when the pattern is not valid regex), no text link is treated as a product link, so none of them get the params. `openPdpInNewTab` applies to every text link either way. Does not affect product cards or the mini PDP (AI Mode's quick view included), which always get the params, nor — in the default widget — `.pdf` links, which open in the in-chat PDF viewer. |
-| `useAddToCart` | — | Show an "Add to cart" button on product cards in horizontal carousels. Clicking it invokes [`ui.fn.addToCart`](../guides/02-customize-components.md#fnaddtocart) and logs the `addToCart` hook (action `add_to_cart`), not `urlClick`. The built-in button is a no-op unless `fn.addToCart` is also set. Plain product-card clicks and the "Go to product page" dropdown always log `urlClick` with `link_type: 'product_card'` / `'product_card_menu'`, regardless of this flag. |
-| `enableCheckOut` | — | Show a PayPal-branded checkout button in the mini PDP (below the variant options/questions) instead of the "Add to cart" button. The button shows the fixed PayPal wordmark plus a localized "Buy Now" label, and clicking it opens the built-in PayPal checkout flow (`clarity-paypal-widget`) for the selected variant. The PayPal credentials are configured on your agent by Bloomreach: hand your Bloomreach contact the PayPal app's client id and secret, whether it is a sandbox or a live app, and the storefront domains that may start a checkout (the client token is bound to them). Takes precedence over the mini-PDP add-to-cart button when enabled, unless [`ui.fn.showCheckoutButton`](../guides/02-customize-components.md#fnshowcheckoutbutton) returns `false`. |
+| `useAddToCart` | — | Show an "Add to cart" button on product cards in horizontal carousels. Clicking it invokes [`ui.fn.addToCart`](../guides/03-customize-components.md#fnaddtocart) and logs the `addToCart` hook (action `add_to_cart`), not `urlClick`. The built-in button is a no-op unless `fn.addToCart` is also set. Plain product-card clicks and the "Go to product page" dropdown always log `urlClick` with `link_type: 'product_card'` / `'product_card_menu'`, regardless of this flag. |
+| `enableCheckOut` | — | Show a PayPal-branded checkout button in the mini PDP (below the variant options/questions) instead of the "Add to cart" button. The button shows the fixed PayPal wordmark plus a localized "Buy Now" label, and clicking it opens the built-in PayPal checkout flow (`clarity-paypal-widget`) for the selected variant. The PayPal credentials are configured on your agent by Bloomreach: hand your Bloomreach contact the PayPal app's client id and secret, whether it is a sandbox or a live app, and the storefront domains that may start a checkout (the client token is bound to them). Takes precedence over the mini-PDP add-to-cart button when enabled, unless [`ui.fn.showCheckoutButton`](../guides/03-customize-components.md#fnshowcheckoutbutton) returns `false`. |
 | `paypalProductIdPrefix` | — | Prefix every PayPal checkout `item_id` must carry. Any item id that does not already start with it gets it prepended before the mini-PDP Buy now button hands it to PayPal. |
 | `mobileMiniPDPOverlay` | — | When the mini PDP opens in `INSIDE` mode on mobile, display it as a fixed overlay panel (slides up from 30% of the screen) instead of replacing the chat view. Includes a drag handle to dismiss. |
 | `showBackdrop` | — | Show a semi-transparent backdrop behind the widget when it is open. Clicking the backdrop closes the widget. Always active when using the `mobile_pdp` template. |
@@ -250,10 +261,10 @@ All colors accept any valid CSS color value.
 
 | Field | Default | Description |
 |---|---|---|
-| `template` | `'base'` | Widget layout template. Valid values: `'base'`, `'mobile_pdp'`, `'conversational_search'`. On mobile, `'conversational_search'` automatically maps to its mobile variant. |
+| `template` | `'base'` | Widget layout template. Valid values: `'base'`, `'mobile_pdp'`. `'mobile_pdp'` falls back to `'base'` on desktop. |
 | `templateOptions` | — | Additional options for the `mobile_pdp` template. See below. |
 | `clearPageText` | — | Text shown on the large QR/share page. **Formerly nested under `templateOptions`** — a config still setting it there keeps working (falls back automatically), but new configs should set it at this top level. |
-| `desktopTemplate` | — | Set to `'ai_mode'` to mount the widget as a fixed-width side panel that pushes the page's content over, instead of floating `position: fixed`. See [Desktop AI-Mode Side Panel](#desktop-ai-mode-side-panel) below. |
+| `desktopTemplate` | — | Set to `'ai_mode'` to mount the widget as a fixed-width side panel that pushes the page's content over, instead of floating `position: fixed`. Set it at `ui.desktopTemplate` or `ui.desktop.desktopTemplate`. See [Desktop AI-Mode Side Panel](#desktop-ai-mode-side-panel) below. |
 | `desktopTemplateOptions` | — | Options for `desktopTemplate: 'ai_mode'`. See [Desktop AI-Mode Side Panel](#desktop-ai-mode-side-panel) below. |
 
 #### `templateOptions` (`mobile_pdp`)
@@ -283,7 +294,7 @@ to the widget's own mount container, so the page is pushed over rather than cove
 self-injecting — no markup changes are required on the host page.
 
 For the end-to-end integration (weblayer settings plus the host-page work), see the
-[Desktop AI Mode setup guide](../guides/03-side-panel.md).
+[Desktop AI Mode setup guide](../guides/05-side-panel.md).
 
 Once `desktopTemplate` is set, the widget is treated as if a `parentElement`/`fullMode` were
 configured — it resolves desktop `ui` config (and mounts the side panel) regardless of the actual
@@ -337,7 +348,7 @@ Takes priority over top-level `ui.productList` etc. for the matching device type
 
 ### Component Overrides
 
-Custom mount functions for replacing built-in components. See [Customize components](../guides/02-customize-components.md) for the full mount function signature, props, and framework examples (Vanilla JS, React, Vue, Angular).
+Custom mount functions for replacing built-in components. See [Customize components](../guides/03-customize-components.md) for the full mount function signature, props, and framework examples (Vanilla JS, React, Vue, Angular).
 
 ```typescript
 ui.component: {
@@ -353,12 +364,25 @@ ui.component: {
 
 ### Function Overrides
 
-See [Customize components](../guides/02-customize-components.md) for usage details.
+See [Customize components](../guides/03-customize-components.md) for usage details.
 
 ```typescript
 ui.fn: {
-  addToCart?: (product: AssistantCarouselMessageDataItem) => void
-  seeAllResults?: (data: { userMessage?: string; categoryName?: string; rephrasedQuery?: string }) => void
+  addToCart?: (
+    product: AssistantCarouselMessageDataItem,
+    config: { source: string; openMiniPDP: () => void; parentProduct: AssistantCarouselMessageDataItem }
+  ) => void | { status: 'success' | 'failed'; message?: string } | Promise<void | { status: 'success' | 'failed'; message?: string }>
+  showATCButton?: (product: AssistantCarouselMessageDataItem) => boolean
+  showCheckoutButton?: (
+    variant: AssistantCarouselMessageDataItem,
+    config: { source: string; parentProduct: AssistantCarouselMessageDataItem }
+  ) => boolean
+  seeAllResults?: (data: {
+    userMessage?: string | null
+    categoryName?: string | null
+    rephrasedQuery?: string | null
+    queries?: string[] | null
+  }) => void
   getProductImageUrl?: (variantId: string, mainProductId: string) => string
   getProductPrices?: (product: AssistantCarouselMessageDataItem) => PriceOverrides | Promise<PriceOverrides>
   // PriceOverrides = { price?: number | string | null; originalPrice?: number | string | null; currency?: string | null;
@@ -375,13 +399,14 @@ ui.fn: {
 }
 ```
 
-- `addToCart` — called when the user clicks "Add to cart". Override to integrate with the merchant's cart system.
+- `addToCart` — called when the user clicks "Add to cart". Override to integrate with the merchant's cart system. See [Customize components](../guides/03-customize-components.md#fnaddtocart) for `config` and the return value.
+- `showATCButton` / `showCheckoutButton` — per-product gates for the built-in "Add to cart" and PayPal "Buy now" buttons. See [`fn.showATCButton`](../guides/03-customize-components.md#fnshowatcbutton) and [`fn.showCheckoutButton`](../guides/03-customize-components.md#fnshowcheckoutbutton).
 - `seeAllResults` — when set, renders a "See all results" button under every carousel and invokes this callback with the carousel's user message, category, and rephrased query. Override to deep-link into the merchant's own search/category page.
 - `getProductImageUrl` — when set, called with the variant id (falling back to the product id) and the main product id wherever a product/variant image is rendered generically — product cards and the mini PDP (main image and variant swatches) — not tenant `ui.component` overrides. Its return value is tried first; if that URL fails to load, the response's own `image` field is used instead.
-- `getProductPrices` — when set, called with the product (or variant) wherever a price is about to be rendered — product cards, the mini PDP, and AI Mode's product grid and quick view, not tenant `ui.component` overrides. Every field of the returned object is optional: a returned field wins over the response's own value, and a field that is omitted or `null`/`undefined` falls back to the response (return `''` to show no price). Called per variant as well — on the selected variant, and on every variant when `supportPriceRange` is on (unless the card shows a variant selector). May return the object or a Promise of it: while pending no price is shown, and a settled result is cached per product for the page's life so an `async` callback runs once per product; a sync result is not cached and runs on every render, so keep it cheap. Display only — analytics, add-to-cart and the assistant's context still use the response's price. See [Customize components](../guides/02-customize-components.md#fngetproductprices).
+- `getProductPrices` — when set, called with the product (or variant) wherever a price is about to be rendered — product cards, the mini PDP, and AI Mode's product grid and quick view, not tenant `ui.component` overrides. Every field of the returned object is optional: a returned field wins over the response's own value, and a field that is omitted or `null`/`undefined` falls back to the response (return `''` to show no price). Called per variant as well — on the selected variant, and on every variant when `supportPriceRange` is on (unless the card shows a variant selector). May return the object or a Promise of it: while pending no price is shown, and a settled result is cached per product for the page's life so an `async` callback runs once per product; a sync result is not cached and runs on every render, so keep it cheap. Display only — analytics, add-to-cart and the assistant's context still use the response's price. See [Customize components](../guides/03-customize-components.md#fngetproductprices).
 - `goToProductPage` — when set, called instead of navigating to the product URL when a shopper clicks into a product (view details / go to product page / mini-PDP's go-to-PDP button). The widget still logs (analytics hook, a chat event rendered as a "Now viewing product {product_title}" banner, and the click-out event) — this only replaces navigation. `config.source` is the link type the click came from; `config.parentProduct` is the top-level product owning the clicked variant (equal to `variant` when there is no separate variant page). `variant` only carries the base product fields (`id`, `url`, `title`, `image`, `price`, …), the mini-PDP / stock attributes and variant-level attributes — other merchant attributes (card tags, the attribute logged as category, `productAttributesToLog` fields) live on `config.parentProduct`, so read them from there. See [`ui.stateText`](#uistatetext) to customize the banner text.
-- `getLinkOptions` — when set, called synchronously right before a link in a response opens: a text link, a product card / product-card menu / mini-PDP go-to-PDP click, or AI Mode's quick-view button. A returned `newTab` (`true` / `false`) wins over `openPdpInNewTab`; returning nothing, an object without `newTab`, or throwing falls back to it. Not called when `goToProductPage` takes the navigation over, for `.pdf` text links in the default widget (in-chat PDF viewer; AI Mode has none, so its `.pdf` links do go through it), for header links, or for links sent by a live agent. See [Customize components](../guides/02-customize-components.md#fngetlinkoptions).
-- `hideSearchResultCarousels` — return `true` to hand plain search result batches (`result_source: 'SEARCH'`) to the host instead of rendering them: the widget suppresses its own carousel and Compare button for them, does not count them towards the unread badge on the collapsed widget, and pushes them to [`hooks.searchedProducts`](./hooks.md#searchedproducts) (both live and when replaying chat history). Return `false` to render them in the chat. Unset, throwing, or returning anything but a boolean means `true` when [`desktopTemplate`](#desktop-ai-mode-side-panel) is `'ai_mode'` and `false` otherwise. `SIMILAR_PRODUCTS` and `SEARCH_AND_SIMILAR_PRODUCTS` batches are not affected and stay in the chat (see `hideSimilarCarouselPrompts` to drop their prompt buttons). It is called synchronously, once per search result batch when the batch first shows up, and that answer sticks for the batch until the page reloads, across single-page-app navigations and `source` switches. See [Customize components](../guides/02-customize-components.md#fnhidesearchresultcarousels).
+- `getLinkOptions` — when set, called synchronously right before a link in a response opens: a text link, a product card / product-card menu / mini-PDP go-to-PDP click, or AI Mode's quick-view button. A returned `newTab` (`true` / `false`) wins over `openPdpInNewTab`; returning nothing, an object without `newTab`, or throwing falls back to it. Not called when `goToProductPage` takes the navigation over, for `.pdf` text links in the default widget (in-chat PDF viewer; AI Mode has none, so its `.pdf` links do go through it), for header links, or for links sent by a live agent. See [Customize components](../guides/03-customize-components.md#fngetlinkoptions).
+- `hideSearchResultCarousels` — return `true` to hand plain search result batches (`result_source: 'SEARCH'`) to the host instead of rendering them: the widget suppresses its own carousel and Compare button for them, does not count them towards the unread badge on the collapsed widget, and pushes them to [`hooks.searchedProducts`](./hooks.md#searchedproducts) (both live and when replaying chat history). Return `false` to render them in the chat. Unset, throwing, or returning anything but a boolean means `true` when [`desktopTemplate`](#desktop-ai-mode-side-panel) is `'ai_mode'` and `false` otherwise. `SIMILAR_PRODUCTS` and `SEARCH_AND_SIMILAR_PRODUCTS` batches are not affected and stay in the chat (see `hideSimilarCarouselPrompts` to drop their prompt buttons). It is called synchronously, once per search result batch when the batch first shows up, and that answer sticks for the batch until the page reloads, across single-page-app navigations and `source` switches. See [Customize components](../guides/03-customize-components.md#fnhidesearchresultcarousels).
 
 ### `ui.translation`
 
@@ -397,7 +422,7 @@ ui.stateText?: {
 }
 ```
 
-`userActionProductClick` is shown when a shopper clicks into a product and [`fn.goToProductPage`](../guides/02-customize-components.md#function-overrides) is configured. `{product_title}` is replaced with the clicked product's title. Supports the same `mobile`/`desktop`/`bannerSettings[source].ui` override layers as the rest of `ui`.
+`userActionProductClick` is shown when a shopper clicks into a product and [`fn.goToProductPage`](../guides/03-customize-components.md#function-overrides) is configured. `{product_title}` is replaced with the clicked product's title. Supports the same `mobile`/`desktop`/`bannerSettings[source].ui` override layers as the rest of `ui`.
 
 ### `ui.sierraRatingTimeoutLabel`
 
@@ -442,8 +467,8 @@ agentConfig?: {
 
 | Field | Description |
 |---|---|
-| `errorFontColor` | Font color for error messages from an external customer-service agent. Falls back to `ui.errorFontColor`. |
-| `errorBackgroundColor` | Background for agent-level error messages. |
+| `errorFontColor` | Font color for error messages from an external customer-service agent. Default `'#001f31'`; independent of `ui.errorFontColor`. |
+| `errorBackgroundColor` | Background for agent-level error messages. Default `'#ffd1dc'`; independent of `ui.errorBackgroundColor`. |
 | `getAgentVariables` | Function called before each AI request to inject custom variables into the agent state. Return value is merged with agent-specific defaults. |
 
 ---
@@ -482,7 +507,7 @@ feedback?: {
 
 **`surveyEnabled`** — Automatically shows the survey when the widget is closed (or minimized, if `onMinimizeEnabled` is set). All three of the following must be true:
 
-1. The user has sent more than `userMessagesNumberRequired` messages in the current session (default: 2).
+1. The user has sent at least `userMessagesNumberRequired` messages in the current session (default: 2).
 2. The time between the widget closing and the user's last message is less than `intervalTime` hours (default: 48). This prevents showing the survey for stale sessions.
 3. At least `surveyShowInterval` hours have passed since the survey was last shown to this user (default: 168 h / 7 days). Note: this cooldown only applies to the auto-show path — the menu item always forces the survey regardless.
 
@@ -512,7 +537,7 @@ initialMessage?: {
 
 | Field | Description |
 |---|---|
-| `text` | The message text sent from Clarity to open the conversation. |
+| `text` | The message text sent from Clarity to open the conversation. Without it, the conversation opens with the agent's welcome message and its quick replies; `engText` and `quickReply` apply only with `text`. |
 | `engText` | English version of the text, used by the AI model to generate a better response regardless of the widget language. Defaults to `text` if omitted. |
 | `itemIdsToShow` | Item IDs for a product carousel shown alongside the initial message. |
 | `quickReply.text` | Hint text shown above the quick reply buttons. |
@@ -527,7 +552,7 @@ initialMessage?: {
 
 ## `hooks` — Event Hooks
 
-Callbacks the widget calls when something happens in the chat. `version` must be `'WBL_BUNDLE'`; every callback receives one params object. With the weblayer the hooks are set through [`widget.hooks`](./weblayer-config.md#widget--clarity-widget-settings). Every hook and its params are documented in [`hooks.md`](./hooks.md).
+Callbacks the widget calls when something happens in the chat. `version` must be `'WBL_BUNDLE'`; every callback receives one params object. With the weblayer, see [Hooks on a weblayer page](./hooks.md#hooks-on-a-weblayer-page). Every hook and its params are documented in [`hooks.md`](./hooks.md).
 
 ---
 
@@ -539,7 +564,7 @@ See **[`runtime-api.md`](./runtime-api.md)** for the full `window.CLARITY` refer
 
 ## Widget Browser Events (`Clarity:*`)
 
-Every hook is also dispatched as a `CustomEvent` on `window` (`Clarity:chatOpen`, …), so page code can listen without configuring `hooks`. See [`hooks.md` → Browser events](./hooks.md#browser-events).
+Every hook is also dispatched as a `CustomEvent` on `window` (`Clarity:chatOpen`, …), so page code can listen without hook callbacks. This needs `hooks: { version: 'WBL_BUNDLE' }` (the weblayer sets it); without it only the function hooks and a legacy subset of the engagement hooks fire, the latter mostly with a positional or empty `detail`. See [`hooks.md` → Browser events](./hooks.md#browser-events).
 
 Every `Clarity:*` event includes `source: string` in `event.detail`, set to the current `CLARITY_CONFIG.source`. When no `bannerSettings` entry exists for the active source (or when `source` is not set), all config reads fall back to the top-level `CLARITY_CONFIG` fields — so existing standalone configurations are unaffected.
 
@@ -548,6 +573,18 @@ Every `Clarity:*` event includes `source: string` in `event.detail`, set to the 
 ## Configuration Example (Standalone)
 
 ```javascript
+// a random id kept in localStorage, so it lasts across pages; when storage is blocked it lasts for this page
+let clarityShopperId
+const getStoredClarityShopperId = () => {
+  const bytes = crypto.getRandomValues(new Uint8Array(16))
+  const id = `USER_${Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('')}`
+  try {
+    return (localStorage.clarityShopperId ??= id)
+  } catch {
+    return id
+  }
+}
+
 window.CLARITY_CONFIG = {
   url: undefined, // auto-detected from script src
   projectId: '00000000-0000-0000-0000-000000000000', // your Engagement project id
@@ -555,8 +592,11 @@ window.CLARITY_CONFIG = {
   defaultCurrency: 'EUR',
   fullMode: false,
   initialState: 0,
+  // must return the same id on every call, so the first answer is kept for the page. The widget asks as
+  // soon as it starts: the SDK cookie is used only if the SDK has set it by then, so load the SDK first,
+  // or leave the cookie out and always use the stored id
   getCurrentCustomerId: () =>
-    window.exponea?.configuration?.customer?.cookie ?? `USER_${Math.random()}`,
+    (clarityShopperId ??= window.exponea?.configuration?.customer?.cookie ?? getStoredClarityShopperId()),
   getContext: () => ({
     cartItemIds: getCartItemIds(),
     currentItemId: getProductId(),
@@ -576,5 +616,6 @@ window.CLARITY_CONFIG = {
     enabled: true,
     surveyEnabled: true,
   },
+  hooks: { version: 'WBL_BUNDLE' }, // required for the Clarity:* browser events
 }
 ```
