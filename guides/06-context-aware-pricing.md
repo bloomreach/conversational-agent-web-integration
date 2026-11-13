@@ -1,6 +1,6 @@
-[← Back to Chapter 3 — Side Panel](03-side-panel.md)
+[← Back to Chapter 5 — Side Panel](05-side-panel.md)
 
-# 4. Context-Aware Pricing
+# 6. Context-Aware Pricing
 
 Context-aware pricing lets each shopper see, and hear from the agent, only the prices that apply to them: member or
 regular, trade or retail, by region. Your page tells the widget which price attributes apply to the current shopper;
@@ -109,7 +109,7 @@ replaces the top-level one.
 | `displayName` | string | no | Display only: label in the mini-PDP and AI Mode quick view. Default: the attribute name in title case. |
 
 **The page sends its whole context every time.** Leaving `priceAttributesToUse` out, or returning `null`, clears the
-list for the rest of the chat, and the agent falls back to `price`.
+list until the page sends one again, and the agent falls back to `price`. The same applies to `userPricingContext`.
 
 What happens to a list that breaks a rule:
 
@@ -122,7 +122,7 @@ What happens to a list that breaks a rule:
 | At most 4 entries | First 4 kept |
 | Exactly one primary | First flagged entry, else the first entry |
 | At most 2 entries without `attachedTo` | The widget shows the first 2 that have a value |
-| A name longer than 128 characters, or a `primary` that is not a boolean | The **whole** context update is rejected, including the other context fields such as the current product |
+| A name longer than 128 characters, or a `primary` that is neither a boolean nor `null` | The **whole** context update is rejected, including the other context fields such as the current product |
 
 ### `userPricingContext`
 
@@ -132,7 +132,7 @@ prices: only `priceAttributesToUse` does.
 
 ### `ui.fn.getProductPrices`
 
-The general override is described in [Customization](./02-customize-components.md#fngetproductprices). For
+The general override is described in [Customization](./03-customize-components.md#fngetproductprices). For
 context-aware prices:
 
 - It can override any listed price by its attribute name, e.g. `{ member_price: 75 }`. Names that are not in the list
@@ -148,7 +148,7 @@ context-aware prices:
 does not send while a response is still streaming. A changed list therefore applies from the shopper's next message.
 
 **Rendering.** This is how the default widget renders the prices. You can change it with
-[component overrides](./02-customize-components.md#component-overrides) and `getProductPrices`.
+[component overrides](./03-customize-components.md#component-overrides) and `getProductPrices`.
 
 - **Displayed prices:** the entries without `attachedTo`, in list order, that have a value, at most 2. An entry with
   `attachedTo` is shown struck through, only if the entry it names is displayed and it is higher.
@@ -181,7 +181,7 @@ The agent and the product cards get their prices along two different paths, so t
 | No list, `null`, `[]`, or every entry dropped | The agent falls back to `price`. In the regional example the catalog has no `price`, so **no price is shown anywhere** (the shopper's location is unknown, for example). | In a catalog without `price`, always send a list, e.g. a default region. |
 | An entry without `attributeName`, a duplicate name, or more than one entry flagged `primary` | The entry without a name is dropped; for a duplicate, the first occurrence is kept; for several primaries, the first flagged entry wins. The rest of the list still applies. | — |
 | More than 4 valid entries | The first 4 are kept. | — |
-| A name longer than 128 characters, or a `primary` that is not a boolean | The **whole** context update is rejected. Nothing in that update reaches the chat, including the current product. | — |
+| A name longer than 128 characters, or a `primary` that is neither a boolean nor `null` | The **whole** context update is rejected. Nothing in that update reaches the chat, including the current product. | — |
 | The shopper logs in or out during the chat | The new list applies from the next message. Carousels already shown keep their prices. | — |
 | A product has no value for a listed attribute | That price is missing for this product, both for the agent and on the card. If no listed price has a value, the card shows no price. | Ask Bloomreach to configure a fallback, e.g. `member_price` → `price`. |
 | A value that is not a number, e.g. `"call for price"` | The agent and the card show the raw text. Numeric filters don't match the product. | — |
@@ -189,8 +189,9 @@ The agent and the product cards get their prices along two different paths, so t
 
 ## Known issues
 
-- **A changed list is not always re-sent.** If the list changes but keeps the same number of entries (e.g. `[price]` →
-  `[member_price]`), the widget does not send it. The agent keeps the old list until another context field changes.
+- **A reordered list is not re-sent.** If only the order of the entries changes, the widget does not send the list,
+  so without a `primary` flag the agent keeps the old primary until another context field changes. Flag the primary
+  entry. With more than 4 entries the agent also keeps the old first 4.
 - **AI Mode does not send the pricing fields,** so it uses `price`. Its context updates also clear a list the widget
   stored in the same chat.
 - **Cached `getProductPrices` results:** an async result is cached per product for the life of the page and is not
@@ -200,8 +201,8 @@ The agent and the product cards get their prices along two different paths, so t
 ## See also
 
 - [Widget Config](../reference/widget-config.md): `getContext()` and the other `CLARITY_CONFIG` fields
-- [Customization](./02-customize-components.md#fngetproductprices): `getProductPrices`
+- [Customization](./03-customize-components.md#fngetproductprices): `getProductPrices`
 
 ---
 
-[← Chapter 3 — Side Panel](03-side-panel.md) · [Chapter 5 — Search orchestration →](05-search-orchestration.md)
+[← Chapter 5 — Side Panel](05-side-panel.md) · [Chapter 7 — Search orchestration →](07-search-orchestration.md)

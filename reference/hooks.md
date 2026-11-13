@@ -1,11 +1,11 @@
 # Hooks and browser events
 
-The widget tells your page what happens in the chat — it opened, the shopper sent a message, a product was added to the cart — through **hooks**. Every hook is also dispatched as a browser `CustomEvent` on `window`, so there are three ways to react, depending on how the widget reaches your page:
+The widget tells your page what happens in the chat — it opened, the shopper sent a message, a product was added to the cart — through **hooks**. Every hook but one is also dispatched as a browser `CustomEvent` on `window`, so there are three ways to react, depending on how the widget reaches your page:
 
 | Your integration | How to listen | What you receive |
 |---|---|---|
 | Any: the widget is delivered by an Engagement weblayer, or you set up `window.CLARITY_CONFIG` yourself | `window.addEventListener('Clarity:<hook>', e => …)`. Weblayer-delivered: nothing to configure. Standalone: set `hooks: { version: 'WBL_BUNDLE' }` even if you register no callbacks. See [Browser events](#browser-events). Trigger events (`ClarityTrigger:<hook>`) exist only with a weblayer | `event.detail`: the params object documented on this page |
-| Weblayer-delivered, and you add your own callbacks in the weblayer's [`widget.hooks`](./weblayer-config.md#widget--clarity-widget-settings) or a trigger's `hooks` | The callbacks run in addition to the weblayer's own analytics tracking | The params object (`WBL_BUNDLE` format) |
+| Weblayer-delivered, and you add your own callbacks in the weblayer's [`widget.hooks`](./weblayer-config.md#widget--clarity-widget-settings) or a trigger's `hooks` | The callbacks run in addition to the weblayer's own analytics tracking. See [Hooks on a weblayer page](#hooks-on-a-weblayer-page) | The params object (`WBL_BUNDLE` format) |
 | Standalone `window.CLARITY_CONFIG` | [`hooks: { version: 'WBL_BUNDLE', … }`](./widget-config.md#hooks--event-hooks). See [The `hooks` object](#the-hooks-object) | The params object |
 
 Hooks come in three groups. **Engagement hooks** describe what the shopper and the assistant did; when the widget is weblayer-delivered, the weblayer tracks each of them to Engagement analytics under the **action** listed with the hook — the tracked fields are in [`analytics-events.md`](./analytics-events.md). **Function hooks** are actionable callbacks (e.g. "a response is being processed") and are not tracked. **Trigger hooks** come from the weblayer's trigger templates (floating button, PDP/PLP embeds, search suggestions, quiz), not from the chat itself.
@@ -23,7 +23,6 @@ hooks: {
   reloadStarted?: (a: HookParams) => void
   initialMessage?: (a: HookParams) => void
   searchedProducts?: (a: HookParams) => void
-  searchUpdated?: (a: { value, structuredSearchQuery?, source? }) => void
   processingMessage?: (processing: boolean) => void
 
   // Engagement event hooks (also fire browser events):
@@ -39,6 +38,24 @@ hooks: {
   // ... every engagement hook listed below
 }
 ```
+
+### Hooks on a weblayer page
+
+- **For one weblayer:** set the callbacks in its [`widget.hooks`](./weblayer-config.md#widget--clarity-widget-settings). They are called while that weblayer's banner is the active source, that is, while the widget runs on that weblayer's settings.
+- **For every weblayer on the page:** set them on `window.CLARITY_CONFIG.hooks` from your page. Add to that object rather than replacing it, so it works whether your script runs before or after the weblayer:
+
+  ```javascript
+  window.CLARITY_CONFIG = window.CLARITY_CONFIG || {}
+  window.CLARITY_CONFIG.hooks = {
+    ...window.CLARITY_CONFIG.hooks,
+    version: 'WBL_BUNDLE',
+    searchedProducts: (a) => { /* … */ },
+  }
+  ```
+
+- **Both:** for a [function hook](#function-hooks), the weblayer's callback replaces the page's while its banner is active. An engagement hook set in both places is called from both.
+
+Of the function hooks, mobile AI Mode fires only `processingMessage`; the others are fired by the default widget only. A trigger's `hooks` are called for that trigger's own events.
 
 ---
 
@@ -67,6 +84,8 @@ Fired by the chat widget. Each hook lists the analytics **action** the weblayer 
 | `addToCart` | `add_to_cart` |
 | `checkout` | `checkout` |
 | `purchase` | `purchase` |
+| `checkoutCancel` | `checkout_cancel` |
+| `checkoutError` | `checkout_error` |
 | `miniPdpClick` | `mini_pdp_click` |
 | `closeMiniPdp` | `close_mini_pdp` |
 | `selectProduct` | `product_select` |
@@ -82,7 +101,7 @@ Fired by the chat widget. Each hook lists the analytics **action** the weblayer 
 | `clarityError` | `clarity_error` |
 | `log` | _(dynamic — the lowercased log `subType`)_ |
 | `clarityDebug` | `clarity_debug` _(diagnostic; fields not part of the contract)_ |
-| Function hooks (`processingMessage`, `reloadStarted`, `initialMessage`, `searchedProducts`, `searchUpdated`) | _(none — actionable callbacks)_ |
+| Function hooks (`processingMessage`, `reloadStarted`, `initialMessage`, `searchedProducts`) | _(none — actionable callbacks)_ |
 
 ### Engagement Hooks
 
@@ -100,7 +119,7 @@ Fields: `agent_id`, `source`, `has_chat`, `has_user_message`
 
 #### `reloaded`
 
-Fired after the chat reloads (e.g. after clear-chat).
+Fired after the chat reloads because it was cleared in this tab (clear-chat button or `delete_chat`).
 
 **Action:** _(none — not forwarded to analytics)_
 
@@ -269,15 +288,17 @@ Fields: `agent_id`, `source`, `conversation_state`, `chat_widget_size`, `chat_co
 
 ---
 
-#### `purchase`
+#### `purchase`, `checkoutCancel`, `checkoutError`
 
-Fired when that checkout settles, once per `checkout`.
+Each `checkout` settles at most once, with one of these three hooks. A checkout still open when the shopper leaves the page fires none of them.
 
-**Action:** `purchase`
+| Hook | Action | Fired when | Fields |
+|---|---|---|---|
+| `purchase` | `purchase` | PayPal approved the payment | same as `checkout`, plus `order_id`? (the PayPal order id) |
+| `checkoutCancel` | `checkout_cancel` | the checkout ended without a payment or an error | same as `checkout`, plus `message` |
+| `checkoutError` | `checkout_error` | setting up the checkout failed (the PayPal client token request or loading the PayPal SDK) or took longer than 45 seconds, or the PayPal SDK threw (e.g. the cart could not be created because an item id is unknown to PayPal) or returned an unexpected status | same as `checkout`, plus `error`: the failure's message, `'PayPal setup timed out'` for the 45-second limit, or `'PayPal status <status>'` for an unexpected status |
 
-Fields: same as `checkout`, plus `purchase_status`, `order_id`?, `error`?
-
-`purchase_status` is `'success'` (PayPal approved the payment; `order_id` carries the PayPal order id), `'failure'` (the PayPal SDK threw, e.g. the cart could not be created because an item id is unknown to PayPal — `error` carries the SDK's message — returned an unexpected status, or loading the checkout took longer than 45 seconds) or `'cancelled'` (the shopper closed the payment sheet or the overlay, or the chat was closed).
+`message` of `checkoutCancel` says what ended the checkout: `'paypal_closed'` (the shopper closed the PayPal payment sheet), `'chat_closed'` (the chat was closed, cleared or reset while the checkout was open) or `'new_checkout'` (the shopper started another checkout before this one settled).
 
 ---
 
@@ -293,7 +314,7 @@ Fields: `agent_id`, `source`, `conversation_state`, `chat_widget_size`, `chat_co
 
 #### `closeMiniPdp`
 
-Fired when the user closes the mini PDP panel.
+Fired when the mini PDP panel closes: the user closes it, or closes or minimizes the widget while it is open.
 
 **Action:** `close_mini_pdp`
 
@@ -435,7 +456,7 @@ Fields: `agent_id`, `source`, `type`, `message`. Diagnostic only; the fields are
 
 ### Function Hooks
 
-Actionable callbacks rather than analytics: the weblayer does not track them.
+Actionable callbacks rather than analytics: the weblayer does not track them. Set them in `hooks` (on a weblayer page, see [Hooks on a weblayer page](#hooks-on-a-weblayer-page)), or listen to their `Clarity:*` browser event.
 
 #### `processingMessage`
 
@@ -447,7 +468,7 @@ processingMessage?: (processing: boolean) => void
 
 `processing` — `true` when a response is in progress, `false` when complete.
 
-> The `CustomEvent` carries the full params (`agent_id`, `source`, `notificationText`), but the handler function receives only the `boolean`.
+> The `CustomEvent` carries the full params (`processing`, `agent_id`, `source`, `notificationText`), but the handler function receives only the `boolean`.
 
 ---
 
@@ -479,7 +500,7 @@ Fields: `agent_id`, `source`, `text`?, `qrs`?
 
 #### `searchedProducts`
 
-Fired after a conversational search returns products. Fires on conversational search templates (carrying every batch), and on any template where [`ui.fn.hideSearchResultCarousels`](./widget-config.md#function-overrides) hands search results to the page (carrying only the batches the widget suppressed).
+Fired when [`ui.fn.hideSearchResultCarousels`](./widget-config.md#function-overrides) hands search results to the page, carrying the batches the widget suppressed.
 
 ```ts
 searchedProducts?: (a: HookParams) => void
@@ -492,29 +513,6 @@ Fields: `agent_id`, `source`, `products_data`?, `from_history`?
 
 ---
 
-#### `searchUpdated`
-
-Fired when the search query changes (conversational search templates only).
-
-```ts
-searchUpdated?: (a: {
-  value: string
-  structuredSearchQuery?: {
-    claritySearchFilter?: { must?: any[]; should?: any[]; must_not?: any[] } | null
-    sorting?: string[] | null
-  } | null
-  source?: string
-}) => void
-```
-
-`value` — the updated search query text.
-`structuredSearchQuery` — structured filter and sorting parameters.
-`source` — message source (e.g. `'DEFAULT'`).
-
-> Callback only: `searchUpdated` is the one hook that is **not** dispatched as a `Clarity:*` browser event.
-
----
-
 ### Property Reference
 
 All properties that can appear in the params object of a Clarity hook.
@@ -522,7 +520,7 @@ All properties that can appear in the params object of a Clarity hook.
 | Property | Type | Description | Hooks |
 |---|---|---|---|
 | `agent_id` | `string` | Persona ID | all |
-| `source` | `string` | Weblayer identifier (`"{weblayerId}::{weblayerName}"`) | all except `surveyShow`, `surveyClosed`, `feedbackSubmitted` |
+| `source` | `string` | Weblayer identifier (`"{weblayerId}::{weblayerName}"`) | all |
 | `conversation_state` | `string` | State of the conversation at the time of the event. Values: `'conversation'` (user active within last 10 min) \| `'idle'` (last user message over 10 min ago, or events exist but no user messages) \| `'initial_message'` (only the assistant's initial message, no user messages) \| `'welcome_message'` (assistant has replied beyond initial message, no user messages) \| `'home_screen'` (home screen mode, no messages) \| `'none'` (completely empty). Empty string on a `clarityError` caught in the widget itself | all engagement hooks except `initialized`, `surveyShow`, `surveyClosed`, `feedbackSubmitted` |
 | `chatId` | `string` | ID of the chat conversation (the tracked event also carries it as `chat_id`) | all engagement hooks except `initialized`, `surveyShow`, `surveyClosed`, `feedbackSubmitted`, and `clarityError` caught in the widget itself |
 | `chat_widget_state` | `string` | Visibility state of the widget: `'open'` \| `'bubble'` \| `'minimized'` | `reloaded`, `widgetShown`, `productMenuClick`, `clarityRespond`, `clarityRespondProduct`, `clarityRespondButton`, `externalAgentRespond`, `clarityWarning`, `clarityError` (`'Back-end'` only) |
@@ -532,34 +530,33 @@ All properties that can appear in the params object of a Clarity hook.
 | `has_user_message` | `boolean` | Whether the user has ever sent a message | `initialized` |
 | `state` | `number` | Numeric code of the reload reason | `reloaded` |
 | `action` | `string` | Describes what triggered the event. `chatOpen`: `'expand_from_trigger'` \| `'expand_from_bubble'` \| `'expand_from_minimized'`; `chatClosed`: `'minimize_from_open'`; `badgeHidden`: `'close_chat_from_trigger'` \| `'close_chat_from_minimized'` \| `'close_chat_from_open_on_mobile'` \| `'minimize_from_open'` (close button with `ui.skipMinimize`) | `chatOpen`, `chatClosed`, `badgeHidden`, `widgetShown` |
-| `button_text` | `string` | Label of the button that triggered the event | `chatOpen`, `widgetShown`, `userRespond`, `clarityRespondButton` |
+| `button_text` | `string` | Label of the button that triggered the event | `chatOpen`, `widgetShown`, `userRespond`, `userRespondProduct`, `clarityRespondButton` |
 | `button_payload` | `string` | JSON-encoded payload attached to the clicked button or quick reply (e.g. `target`, `source`, `productIds`, plus any merchant-defined fields). Serialized via `JSON.stringify` | `userRespond` |
 | `chat_opened_from_trigger` | `string` | Name of the trigger banner that opened the chat | `chatOpen`, `widgetShown` |
 | `chat_opened_from_trigger_component` | `string` | Trigger component (e.g. trigger template) that opened the chat | `chatOpen`, `widgetShown` |
 | `clicked_in_trigger` | `string` | Trigger banner name associated with the chat session when the user responded | `userRespond` |
-| `user_respond_source` | `string` | Trigger component (e.g. trigger template) that opened the chat for this response. Defaults to `'in_chat'` when the response did not originate from a trigger | `clarityRespond` |
-| `component` | `string` | Component identifier. Always `'chat'` for `widgetShown`, `'feedback_survey'` for `surveyShow` | `widgetShown`, `surveyShow` |
-| `component_template` | `string` | Component template version. `'chat_v1'` or `'feedback_survey_v1'` | `widgetShown`, `surveyShow` |
+| `user_respond_source` | `string` | Trigger component (e.g. trigger template) that opened the chat for this response. Defaults to `'in_chat'` when the response did not originate from a trigger | `clarityRespond`, `clarityRespondProduct`, `clarityRespondButton` |
+| `component` | `string` | Component identifier. `'chat'` (`'ai_mode'` in AI Mode) for `widgetShown`, `'feedback_survey'` for `surveyShow` | `widgetShown`, `surveyShow` |
+| `component_template` | `string` | Component template version. `'chat_v1'`, `'ai_mode_v1'` or `'feedback_survey_v1'` | `widgetShown`, `surveyShow` |
 | `initial_message` | `string` | Text of the initial assistant message shown in the bubble | `widgetShown` (bubble state) |
 | `initial_message_product_ids` | `string[]` | Product IDs shown in the initial carousel bubble | `widgetShown` (bubble state) |
 | `initial_message_quick_replies` | `object` | Quick reply config from the initial message bubble | `widgetShown` (bubble state) |
 | `type` | `string` | Describes the nature of the event. For `userRespond`: `'text'` \| `'quick_reply'` \| `'suggestion_button'` \| `'trigger_button'` \| `'agent_button'` \| `'agent_form'` \| `'product_card_menu'`. For `clarityRespond`: `'text'` \| `'carousel'` \| `'text_with_carousel'`. For `selectProduct`: `'product_card_menu'` (only when triggered from the product card menu) | `userRespond`, `userRespondProduct`, `clarityRespond`, `clarityRespondProduct`, `clarityRespondButton`, `selectProduct`, `clarityWarning`, `clarityError` |
 | `target` | `string` | Intent target for quick reply messages (e.g. `'find_similar_or_compatible_products'`) | `userRespond`, `userRespondProduct` |
-| `product_ids` | `string[]` | All product IDs involved in the event | `userRespond`, `clarityRespond`, `checkout`, `purchase` |
-| `checkout_location` | `string` | Where the checkout started: `'quick_view'` (mini PDP Buy now) | `checkout`, `purchase` |
-| `checkout_provider` | `string` | Payment provider, currently always `'paypal'` | `checkout`, `purchase` |
-| `purchase_status` | `string` | `'success'` \| `'failure'` \| `'cancelled'` | `purchase` |
+| `product_ids` | `string[]` | All product IDs involved in the event | `userRespond`, `clarityRespond`, `checkout`, `purchase`, `checkoutCancel`, `checkoutError` |
+| `checkout_location` | `string` | Where the checkout started: `'quick_view'` (mini PDP Buy now) | `checkout`, `purchase`, `checkoutCancel`, `checkoutError` |
+| `checkout_provider` | `string` | Payment provider, currently always `'paypal'` | `checkout`, `purchase`, `checkoutCancel`, `checkoutError` |
 | `order_id` | `string` | PayPal order id of a successful purchase | `purchase` |
-| `error` | `string` | PayPal SDK error message of a failed purchase | `purchase` |
+| `error` | `string` | Error message of the failed checkout | `checkoutError` |
 | `product_id` | `string` | Single product ID (used in per-product sub-hooks and link/PDP click hooks) | `userRespondProduct`, `clarityRespondProduct`, `urlClick`, `addToCart`, `miniPdpClick`, `closeMiniPdp`, `selectProduct`, `deselectProduct`, `productMenuClick` |
-| `product_category` | `string` | Value of the merchant-configured category attribute for the product | `userRespondProduct`, `clarityRespondProduct`, `urlClick`, `addToCart`, `checkout`, `purchase`, `miniPdpClick`, `productMenuClick` |
+| `product_category` | `string` | Value of the merchant-configured category attribute for the product | `userRespondProduct`, `clarityRespondProduct`, `urlClick`, `addToCart`, `checkout`, `purchase`, `checkoutCancel`, `checkoutError`, `miniPdpClick`, `productMenuClick` |
 | `source_type` | `string` | Where a product menu action was invoked from: `'product_card'` \| `'carousel'` \| `'quick_view'` | `productMenuClick` |
 | `product_display_type` | `string` | How a single product was displayed: `'carousel'` \| `'thumbnail'` | `clarityRespondProduct` |
 | `products_display_type` | `string` | How products in a response were displayed: `'carousel'` \| `'thumbnail'` \| `'carousel_with_thumbnail'` | `clarityRespond`, `clarityRespondProduct`, `clarityRespondButton` |
 | `carousel_product_ids` | `string[]` | Subset of `product_ids` that appeared in the carousel (vs thumbnail) section | `clarityRespond` |
-| `message` | `string` | Text content of a response or warning/error description | `clarityRespond`, `clarityRespondProduct`, `clarityRespondButton`, `externalAgentRespond`, `clarityWarning`, `clarityError` |
+| `message` | `string` | Text content of a response or warning/error description; for `checkoutCancel`, what ended the checkout | `clarityRespond`, `clarityRespondProduct`, `clarityRespondButton`, `externalAgentRespond`, `clarityWarning`, `clarityError`, `checkoutCancel` |
 | `response_source` | `string` | Source of a response, derived from response metadata. Clarity responses: `'PDKB'` \| `'PDKBG'` (product question answered from the knowledge base, `G` = with general knowledge) \| `'KB'` \| `'KBG'` (knowledge-base question) \| `'gk'` (general knowledge only); absent for a plain product search. External agents: `'ai_agent'` (the provider's bot) \| `'live_agent'` (a human agent) | `clarityRespond`, `clarityRespondProduct`, `clarityRespondButton`, `externalAgentRespond` |
-| `suggested_buttons` | `Prompt[]` | All suggestion buttons in a Clarity response (quick replies + prompt buttons combined) | `clarityRespond`, `selectProduct`, `deselectProduct` |
+| `suggested_buttons` | `Prompt[]` | All suggestion buttons in a Clarity response (quick replies + prompt buttons combined) | `clarityRespond`, `clarityRespondProduct`, `selectProduct`, `deselectProduct` |
 | `prompts` | `Prompt[]` | Prompt-type buttons only | `clarityRespond` |
 | `qrs` | `QuickReply[]` | Quick reply buttons only | `clarityRespond`, `initialMessage` |
 | `latency` | `number` | Response time in milliseconds | `clarityRespond`, `clarityRespondProduct`, `clarityRespondButton`, `externalAgentRespond`, `clarityError` (`'Back-end'` only) |
@@ -573,7 +570,7 @@ All properties that can appear in the params object of a Clarity hook.
 | `button_type` | `string` | Type of a suggestion button: `'fixed'` (system buttons) \| `'quick_reply'` \| `'suggested_question'` \| `'pdp_question'` | `clarityRespondButton` |
 | `link_type` | `string` | Type of link clicked: `'product_card'` \| `'mini_pdp_product'` \| `'text_url'` \| `'product_card_menu'` \| `'srp_link'` | `urlClick` |
 | `url` | `string` | URL associated with the clicked product or link | `urlClick`, `miniPdpClick`, `closeMiniPdp`, `buttonClick` |
-| `link_text` | `string` | For `link_type` `'text_url'`, the visible text of the clicked link; for `'srp_link'`, the search query passed to the results page | `urlClick` |
+| `link_text` | `string` | For `link_type` `'text_url'`, the visible text of the clicked link; for `'srp_link'`, the search query passed to the results page, or the category name when there is none | `urlClick` |
 | `select_all` | `boolean` | `true` when multiple products are selected in a single action | `selectProduct` |
 | `current_selection` | `string[]` | Full list of currently selected product IDs after the action | `selectProduct`, `deselectProduct` |
 | `deselect_all` | `boolean` | `true` when multiple products are deselected in a single action | `deselectProduct` |
@@ -620,7 +617,7 @@ The **weblayer** trigger system (floating button, PDP/PLP embeds, search suggest
 
 **Action:** `show`
 
-Fired when the trigger is already in / scrolls into the viewport (v1.x), or via scroll detection (v2.0). The search-suggestion template also carries search context; the PLP category name arrives through the default attribute `plp_category_name`.
+Fired when the trigger is already in / scrolls into the viewport (v1.x), or via scroll detection (v2.0). The search-suggestion template also fires it after every suggestion fetch, carrying the search context; the PLP category name arrives through the default attribute `plp_category_name`.
 
 Fields: default attrs + `source`, `trigger_context_product_ids`, `trigger_conversation_starters_list`? (the questions shown), `trigger_conversation_starters_is_generated`?, `trigger_conversation_starters_generated`? (embedded templates), `search_text`? + `search_results`? (search-suggestion template)
 
@@ -632,7 +629,7 @@ Fields: default attrs + `source`, `trigger_context_product_ids`, `trigger_conver
 
 v2.0 only. Fired when the trigger element actually enters the viewport via `IntersectionObserver` (distinct from the scroll-based `show`).
 
-Fields: default attrs + `source`, `trigger_context_product_ids`
+Fields: default attrs + `source`, `trigger_context_product_ids`, `trigger_conversation_starters_list`?, `trigger_conversation_starters_is_generated`?, `trigger_conversation_starters_generated`? (embedded templates)
 
 ---
 
@@ -689,9 +686,9 @@ All properties that can appear in the params object of a trigger hook.
 | `chat_widget_state` | `string` | Widget visibility state at click time | `clicked` |
 | `chat_widget_size` | `string` | Size of the open widget at click time | `clicked` |
 | `conversation_state` | `string` | Conversation state at click time | `clicked` |
-| `trigger_conversation_starters_list` | `string[]` | Text of the conversation-starter questions shown in the trigger | `show`, `clicked`, `suggestionsRendered` |
-| `trigger_conversation_starters_is_generated` | `boolean` | Whether the starter list is AI-generated | `show`, `clicked` |
-| `trigger_conversation_starters_generated` | `boolean[]` | Per-question generated flags | `show`, `clicked` |
+| `trigger_conversation_starters_list` | `string[]` | Text of the conversation-starter questions shown in the trigger | `show`, `actualShow`, `clicked`, `suggestionsRendered` |
+| `trigger_conversation_starters_is_generated` | `boolean` | Whether the starter list is AI-generated | `show`, `actualShow`, `clicked` |
+| `trigger_conversation_starters_generated` | `boolean[]` | Per-question generated flags | `show`, `actualShow`, `clicked` |
 | `button_text` | `string` | Text of the clicked conversation starter / button | `clicked` |
 | `button_text_is_generated` | `boolean` | Whether the clicked question was AI-generated | `clicked` |
 | `search_text` | `string` | Search query text | `show`, `suggestionsSearched` (search suggestion) |
@@ -703,7 +700,7 @@ All properties that can appear in the params object of a trigger hook.
 
 ## Browser events
 
-Every hook is also dispatched as a `CustomEvent` on `window`: `Clarity:{hookName}` for Clarity hooks, `ClarityTrigger:{hookName}` for trigger hooks (weblayer only). `event.detail` is the params object documented above. A weblayer-delivered widget needs nothing for this; a standalone `window.CLARITY_CONFIG` has to set `hooks: { version: 'WBL_BUNDLE' }` even when it registers no callbacks, otherwise the events are not dispatched.
+Every hook is also dispatched as a `CustomEvent` on `window`: `Clarity:{hookName}` for Clarity hooks, `ClarityTrigger:{hookName}` for trigger hooks (weblayer only). `event.detail` is the params object documented above. A weblayer-delivered widget needs nothing for this; a standalone `window.CLARITY_CONFIG` has to set `hooks: { version: 'WBL_BUNDLE' }` even when it registers no callbacks; otherwise only the function hooks and a legacy subset of the engagement hooks are dispatched, the latter mostly with a positional or empty `detail` and some under legacy names, not the shape on this page.
 
 ```js
 window.addEventListener('Clarity:userRespond', (event) => {
@@ -718,4 +715,4 @@ Every `Clarity:*` event includes `source` in `event.detail`, set to the current 
 
 `processingMessage` is the only hook where the callback argument (the boolean) differs from the `CustomEvent` detail, which carries the full params object.
 
-The event name is the hook name: `Clarity:chatOpen`, `Clarity:userRespond`, `Clarity:addToCart`, … for every hook under [Clarity Hooks](#clarity-hooks), engagement and function hooks alike (except `searchUpdated`, which only calls its callback), and `ClarityTrigger:show`, `ClarityTrigger:clicked`, … for the [Trigger Hooks](#trigger-hooks).
+The event name is the hook name: `Clarity:chatOpen`, `Clarity:userRespond`, `Clarity:addToCart`, … for every hook under [Clarity Hooks](#clarity-hooks), engagement and function hooks alike, and `ClarityTrigger:show`, `ClarityTrigger:clicked`, … for the [Trigger Hooks](#trigger-hooks).
