@@ -12,7 +12,7 @@ This guide is for the developer and the Engagement admin who integrate the widge
 - **Part 4 — Multi-page storefronts** covers sites where every navigation is a full page load.
 - **Part 5 — Alternative** covers mounting into a container of your own instead, for layouts the built-in side panel cannot produce.
 
-This feature is for desktop: the widget does not check the viewport itself, so target the weblayer at desktop devices. The widget injects everything it needs into the page: no host markup, container element or CSS is required for the panel itself.
+This feature is for desktop: the widget does not check the viewport itself, so target the weblayer at desktop devices. The widget injects everything it needs into the page: no host markup or container element is required, and the only CSS your page needs is `body { margin: 0 }` ([2.1](#21-page-layout-checklist-required)).
 
 > **Not the same as the "AI Mode" widget template.** `widget.ui.desktopTemplate: 'ai_mode'` (this guide) is a layout for the default widget. `widgetTemplate: 'ai_mode'` selects a different widget bundle (the full-screen conversational search). Leave `widgetTemplate` unset when following this guide.
 
@@ -157,8 +157,8 @@ widget: {
 
 | Field | Feeds | Notes |
 |---|---|---|
-| `productIds` + `productIdsType` | `getContext().currentItemId` / `currentItemIds` | With `pageType: 'pdp'` (or a single id), the id becomes `currentItemId`, which the PDP flags in 1.6 rely on. |
-| `widget.pageType` | `getContext()` | `'pdp'`, `'plp'` or `'cart'`. |
+| `productIds` + `productIdsType` | `getContext().currentItemId` / `currentItemIds` | With `pageType: 'pdp'` (or a single id with `pageType` unset), the id becomes `currentItemId`, which the PDP flags in 1.6 rely on. |
+| `widget.pageType` | — | `'pdp'`, `'plp'` or `'cart'`. Decides how `productIds` is sent (`'pdp'` makes the first id `currentItemId`, any other value sends them as `currentItemIds`) and whether a PDP Embedded question is scoped to that product. |
 | `widget.pdpUrl` | `getContext().pdpUrl` | Optional. The current product page URL. |
 | `widget.plpCategoryName`, `plpCategoryDescription`, `urlQueryParams` | `getCategoryInfo()` | Optional. The listing page's category, used to answer category questions. |
 
@@ -222,7 +222,7 @@ body
           └── #cocoaas-desktop-ai-mode-widget-mount
 ```
 
-All of `<body>`'s existing children are moved into `#cocoaas-desktop-ai-mode-page-content`, which scrolls on its own. `<body>` and `window` no longer scroll. Check the following in your page before enabling the panel:
+All of `<body>`'s existing children are moved into `#cocoaas-desktop-ai-mode-page-content`, which scrolls on its own. Set `body { margin: 0 }`: the host is exactly `100dvh` tall, so `<body>` and `window` then no longer scroll. Check the following in your page before enabling the panel:
 
 - **Scroll handling.** Code that reads or listens to `window` / `document` scroll (`window.scrollY`, `scroll` listeners on `window`, `window.scrollTo`, "back to top" buttons, infinite-scroll triggers) has to target `#cocoaas-desktop-ai-mode-page-content` instead. Elements with `position: sticky` still work because they stick inside the scrolling container.
 - **`position: fixed` elements.** They stay relative to the viewport, so a fixed header or cookie bar will overlap the panel column. Either constrain them to the page-content box or accept the overlap.
@@ -249,6 +249,9 @@ await window.CLARITY?.call('close_chat')         // minimize, panel collapses
 await window.CLARITY?.call('hide_badge', { log: true })  // hide entirely, panel collapses
 ```
 
+While the widget is hidden, for example on a page where only a trigger shows it, `open_chat` opens the chat out of
+sight and the panel stays collapsed; call `show_badge` first.
+
 To react to the panel opening or closing, listen for the state event:
 
 ```javascript
@@ -269,21 +272,23 @@ window.addEventListener('Clarity:searchedProducts', (event) => {
   const detail = event.detail
   if (!detail || detail.from_history) return
 
-  const products = (detail.products_data ?? [])
-    .filter((batch) => batch.result_source === 'SEARCH')
-    .flatMap((batch) => batch.data ?? [])
+  const products = (detail.products_data ?? []).flatMap((batch) => batch.data ?? [])
   if (!products.length) return
 
-  window.clarityPage.clarityResults = products
-  window.__clarityRouter?.push('/search?fromClarity=1')
+  const key = String(Date.now())
+  window.clarityPage ??= {}
+  window.clarityPage.clarityResults = { key, products }
+  window.__clarityRouter?.push(`/search?clarityResults=${key}`)
 })
 ```
+
+The key gives every answer its own results URL, so a new answer while the shopper is already on the results page still updates it. Your results page shows `clarityResults.products` when `clarityResults.key` matches the URL's `clarityResults` parameter, as the [complete example](#32-storefront-side) does.
 
 Event payload (`event.detail`):
 
 | Field | Description |
 |---|---|
-| `products_data` | Array of batches: `{ rephrased_query?, result_source?, data: [...] }`. Only batches with a `result_source` were suppressed in the chat. |
+| `products_data` | Array of batches: `{ rephrased_query?, result_source?, data: [...] }`. Every batch in it is a `result_source: 'SEARCH'` batch the widget did not render. |
 | `products_data[].data[]` | The products. Each has `id`, `title`, `url`, `image`, `price`, `originalPrice`, `variants` and the merchant attributes configured for the persona. |
 | `from_history` | `true` when the widget is replaying an existing conversation on page load. Skip those so a reload does not navigate the shopper away. |
 
@@ -291,11 +296,11 @@ Notes for the product mapping:
 
 - `price` is the current price. `originalPrice`, when present, is the pre-discount price to show crossed out.
 - `url` is the product's public URL. Its id segment can be a group and variant joined by `___` (for example `/products/1305___1305`); take the part before `___` if your routes use the group id.
-- Clear your stored results when the shopper starts a new search on your own search box and when the results page unmounts. Otherwise a back navigation to the results route shows the previous answer's products, and a hard refresh lands on an empty store.
+- The products are kept in memory only, so a reload of the results page finds none; to keep them across a page load, see [4.3](#43-search-results-across-a-page-load).
 
 ### 2.4 Expose live page context
 
-Needed for the [page context](#15-page-context) functions and the [PDP awareness flags](#16-pdp-awareness-flags) on a single-page app. The widget only ever calls `getContext()` and `getCategoryInfo()`; it does not watch the URL or the router. Your page has to keep the data those functions read up to date on every navigation.
+Needed for the [page context](#15-page-context) functions and the [PDP awareness flags](#16-pdp-awareness-flags) on a single-page app. The widget reads the page context only through `getContext()` and `getCategoryInfo()`, never from the URL; route changes only tell it when to call them again (see below). Your page has to keep the data those functions read up to date on every navigation.
 
 A simple pattern is one global object that every page view writes to on mount:
 
@@ -401,12 +406,12 @@ window.CLARITY_WEBLAYER_CONFIG = {
 
 ```
 src/
-├── lib/clarityPage.js              window.clarityPage helpers
-├── app/layout.jsx                  renders ClarityBridge once
-├── app/ClarityBridge.jsx           router bridge + search results listener
-├── app/products/[id]/page.jsx      publishes the current product
-├── app/categories/[id]/page.jsx    publishes the current category and listing ids
-└── app/search/page.jsx             shows Clarity results when ?fromClarity=1
+├── lib/clarityPage.js                   window.clarityPage helpers
+├── app/layout.jsx                       renders ClarityBridge once
+├── app/ClarityBridge.jsx                router bridge + search results listener
+├── app/products/[id]/page.jsx           publishes the current product
+├── app/categories/[id]/CategoryView.jsx publishes the current category and listing ids
+└── app/search/page.jsx                  shows Clarity results when ?clarityResults is set
 ```
 
 **`src/lib/clarityPage.js`** — one place that owns the global:
@@ -418,14 +423,16 @@ export const setPageContext = (patch) => {
   Object.assign(store(), patch)
 }
 
+// Keyed, so the results URL of an earlier answer does not show the latest products
 export const setClarityResults = (products) => {
-  store().clarityResults = products
+  const key = String(Date.now())
+  store().clarityResults = { key, products }
+  return key
 }
 
-export const getClarityResults = () => store().clarityResults ?? null
-
-export const clearClarityResults = () => {
-  store().clarityResults = null
+export const getClarityResults = (key) => {
+  const results = store().clarityResults
+  return results?.key === key ? results.products : null
 }
 
 // Widget product → this app's product card shape. `price` is the current price and
@@ -461,12 +468,9 @@ export const ClarityBridge = () => {
     const onSearchedProducts = (event) => {
       const detail = event.detail
       if (!detail || detail.from_history) return
-      const products = (detail.products_data ?? [])
-        .filter((batch) => batch.result_source === 'SEARCH')
-        .flatMap((batch) => batch.data ?? [])
+      const products = (detail.products_data ?? []).flatMap((batch) => batch.data ?? [])
       if (!products.length) return
-      setClarityResults(products)
-      router.push('/search?fromClarity=1')
+      router.push(`/search?clarityResults=${setClarityResults(products)}`)
     }
     window.addEventListener('Clarity:searchedProducts', onSearchedProducts)
 
@@ -502,26 +506,28 @@ export default function RootLayout({ children }) {
 ```jsx
 'use client'
 import { useEffect } from 'react'
+import { useParams } from 'next/navigation'
 import { setPageContext } from '@/lib/clarityPage'
 
-export default function ProductPage({ params }) {
+export default function ProductPage() {
+  const id = useParams().id
   useEffect(() => {
-    setPageContext({ currentProductId: params.id, currentCategoryName: undefined })
+    setPageContext({ currentProductId: id, currentCategoryName: undefined })
     return () => setPageContext({ currentProductId: undefined })
-  }, [params.id])
+  }, [id])
 
   return <>{/* product detail */}</>
 }
 ```
 
-**`src/app/categories/[id]/page.jsx`** — publishes the category and the ids on the grid:
+**`src/app/categories/[id]/CategoryView.jsx`** — rendered by the category page with the data it loaded; publishes the category and the ids on the grid:
 
 ```jsx
 'use client'
 import { useEffect } from 'react'
 import { setPageContext } from '@/lib/clarityPage'
 
-export default function CategoryPage({ category, products }) {
+export const CategoryView = ({ category, products }) => {
   useEffect(() => {
     setPageContext({
       currentProductId: undefined,
@@ -540,24 +546,22 @@ export default function CategoryPage({ category, products }) {
 'use client'
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
-import { clearClarityResults, getClarityResults, toStoreProduct } from '@/lib/clarityPage'
+import { getClarityResults, toStoreProduct } from '@/lib/clarityPage'
 
 export default function SearchPage() {
-  const fromClarity = useSearchParams().get('fromClarity') === '1'
+  const resultsKey = useSearchParams().get('clarityResults')
   const [products, setProducts] = useState([])
 
   useEffect(() => {
-    if (!fromClarity) return
-    setProducts((getClarityResults() ?? []).map(toStoreProduct))
-    return () => clearClarityResults()
-  }, [fromClarity])
+    setProducts(resultsKey ? (getClarityResults(resultsKey) ?? []).map(toStoreProduct) : [])
+  }, [resultsKey])
 
-  if (!fromClarity) return <>{/* regular search */}</>
+  if (!resultsKey) return <>{/* regular search */}</>
   return <>{/* product grid rendering `products` */}</>
 }
 ```
 
-Clearing the results when the page unmounts keeps a later back navigation to `/search?fromClarity=1` from showing a stale answer.
+Every answer gets its own results URL, so a new answer while the shopper is on the results page updates the grid.
 
 ---
 
@@ -604,7 +608,7 @@ if (window.CLARITY) {
 
 Whichever you use:
 
-- With the default [`initialState`](../reference/widget-config.md#initial-state), the panel opens by itself whenever the widget is shown to a visitor who has not chatted yet, in each new browser tab (not when `suppressInitialMessage` is set or the home screen shows). After that it reopens only if the shopper left the previous page with the chat open; otherwise it stays collapsed. While collapsed, nothing of the widget is on screen (the badge is clipped together with the panel), so the shopper reopens it from a trigger or from a button of your own ([2.2](#22-open-close-and-observe-the-panel-from-page-code-optional)).
+- With the default [`initialState`](../reference/widget-config.md#initial-state), the panel opens by itself whenever the widget is shown to a visitor who has not chatted yet, in each new browser tab (not when `suppressInitialMessage` is set or the home screen shows). After that it reopens only if the shopper left the previous page with the chat open; otherwise it stays collapsed. While collapsed, the widget's badge stays on screen (`position: fixed` at [`ui.position`](../reference/widget-config.md#layout--positioning)) and reopens it; to have the shopper reopen it only from a trigger or a button of your own ([2.2](#22-open-close-and-observe-the-panel-from-page-code-optional)), hide the badge (`clarity-minimized`) with CSS.
 - Use the same `desktopTemplate` and `desktopTemplateOptions` in every weblayer that can run on the same page. They all share one widget and one side panel.
 - Leave [`PARAM_initialState`](../reference/widget-config.md#initial-state) at its default. `3` (force-minimized) closes the chat on every page load, so the panel would collapse each time the shopper navigates.
 - Every weblayer with the side panel restructures the page as in [2.1](#21-page-layout-checklist-required) as soon as the widget loads, chat open or not, for every visitor it runs for. A follow-up weblayer on every page does that site-wide. If visitors who never used the chat should be spared, limit the weblayer's audience, for example to visitors with a [`clarity` event](../reference/analytics-events.md).
@@ -629,7 +633,6 @@ window.addEventListener('Clarity:searchedProducts', (event) => {
   if (!detail || detail.from_history) return
 
   const products = (detail.products_data ?? [])
-    .filter((batch) => batch.result_source === 'SEARCH')
     .flatMap((batch) => batch.data ?? [])
     .slice(0, 48) // as many as your results grid shows
     .map((p) => ({
@@ -650,7 +653,7 @@ window.addEventListener('Clarity:searchedProducts', (event) => {
       sessionStorage.removeItem('clarityResults')
     } catch {}
   }
-  window.location.assign('/search?fromClarity=1')
+  window.location.assign('/search?fromClarity=true')
 })
 ```
 
@@ -669,7 +672,7 @@ const readStoredResults = () => {
   }
 }
 
-const fromClarity = new URLSearchParams(window.location.search).get('fromClarity') === '1'
+const fromClarity = new URLSearchParams(window.location.search).get('fromClarity') === 'true'
 const stored = fromClarity ? readStoredResults() : null
 
 if (stored) {
@@ -679,8 +682,7 @@ if (stored) {
     if (!event.detail?.from_history) return
     clearTimeout(timer)
     window.removeEventListener('Clarity:searchedProducts', onReplay)
-    const batches = (event.detail.products_data ?? []).filter((batch) => batch.result_source === 'SEARCH')
-    renderProducts(batches.at(-1)?.data ?? [])
+    renderProducts(event.detail.products_data?.at(-1)?.data ?? [])
   }
   window.addEventListener('Clarity:searchedProducts', onReplay)
   const timer = setTimeout(() => {
@@ -692,7 +694,7 @@ if (stored) {
 
 `renderProducts` stands for your own product card rendering. The replay covers the whole conversation and does not say which answer a batch came from, so the snippet takes the last batch, which is the latest answer's results when that answer returned a single batch. It is dispatched once, while the widget initializes and before `Clarity:initialized`, and cannot be requested again, so register the listener synchronously when your script starts, not after your own data has loaded. Whether your script runs before the widget initializes depends on your page: with the Engagement snippet inline and your bundle deferred it does, since the replay follows several network round trips after the snippet; if your script can start later than that, a missed replay cannot be recovered and the timeout is what gets the shopper out. The replay arrives only after the widget has loaded and fetched the conversation, so show a loading state until then, and leave it after the timeout: when neither the stored results nor the replay arrive, the shopper needs a way to ask again, for example an empty grid with a button that opens the chat.
 
-The mapping and clean-up notes in [2.3](#23-render-widget-search-results-on-your-own-grid) apply here as well: remove `clarityResults` when the shopper runs a search from your own search box.
+The mapping notes in [2.3](#23-render-widget-search-results-on-your-own-grid) apply here as well.
 
 ---
 
@@ -704,7 +706,7 @@ The mapping and clean-up notes in [2.3](#23-render-widget-search-results-on-your
 
 ### 5.2 What changes and what does not
 
-For the widget's own rendering, `desktopTemplate: 'ai_mode'` behaves like a parent element (the widget mounts into its own panel column), so handing it a container of your own produces the **same widget rendering**: square corners and no drop shadow, filling the container, desktop `ui` config at any viewport width, mini PDP and live chat rendered inside the panel rather than beside it, and the close button hidden unless [`ui.showCloseWhenInElement`](../reference/widget-config.md#feature-flags) is set.
+For the widget's own rendering, `desktopTemplate: 'ai_mode'` behaves like a parent element (the widget mounts into its own panel column), so handing it a container of your own produces the **same widget rendering**: square corners and no drop shadow, filling the container, desktop `ui` config at any viewport width, mini PDP rendered inside the panel rather than beside it, live chat video opened in a popup window unless [`ui.liveChatContainer`](../reference/widget-config.md#feature-flags) is set, and the close button hidden unless [`ui.showCloseWhenInElement`](../reference/widget-config.md#display-toggles) is set.
 
 Everything in Parts 1 to 4 still applies, except:
 
@@ -749,7 +751,7 @@ body       { display: flex; flex-direction: column; height: 100dvh; margin: 0 }
   /* seals the widget's own stacking context so its modals and dropdowns,
      which carry high z-indexes, cannot paint over the handle outside it */
   isolation: isolate;
-  transition: width 0.5s ease;
+  transition: width 0.5s ease, min-width 0.5s ease;
 }
 
 #clarity-panel.clarity-panel-open #clarity-mount {
@@ -777,7 +779,7 @@ body       { display: flex; flex-direction: column; height: 100dvh; margin: 0 }
 
 `min-width` and `max-width` always win over an inline `width`, so they clamp the drag for free and the JavaScript below does no arithmetic of its own.
 
-While the chat is minimized the widget still renders its own round badge into the container; a mount collapsed to `width: 0` with `overflow: hidden` clips it, which is also what the built-in side panel does. If you want that badge visible, collapse the panel to the badge's width instead of to zero.
+While the chat is minimized the widget renders its badge (`clarity-minimized`), as in the built-in side panel. The badge is `position: fixed` at [`ui.position`](../reference/widget-config.md#layout--positioning), so the collapsed mount does not clip it; hide it with CSS if your page opens the chat only from its own buttons.
 
 ### 5.5 JavaScript
 
@@ -865,7 +867,6 @@ The container must already be in the DOM when the widget mounts: `PARAM_clarityP
 - **Slow page context on navigation.** After an SPA route change the widget waits up to 3 seconds for `getContext()` to report the new product before giving up on the announce. A `getContext` backed by its own asynchronous fetch can exceed that; publish the id as early as you can (see [2.4](#24-expose-live-page-context)).
 - **PDP questions need an existing conversation.** `showPDPEnterQuestions` only acts for shoppers who have sent at least one message. Viewing pages never creates a conversation, so first-time visitors get product questions from the trigger they click, not from this flag.
 - **Reflow on every page load of a multi-page site.** The panel is rebuilt and slides open again after each navigation while the chat is open; see [4.1](#41-what-happens-on-a-page-load).
-- **Stored search results are yours to clear.** The widget does not tell the page when a result set is stale; see the notes in [2.3](#23-render-widget-search-results-on-your-own-grid).
 
 ## Reference
 

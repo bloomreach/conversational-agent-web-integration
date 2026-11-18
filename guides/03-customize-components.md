@@ -4,6 +4,8 @@
 
 Custom React, Vue, Angular, or plain JS components can replace the built-in MiniPDP, ProductCard, and ProductCarousel slots. Function overrides let you intercept actions like add-to-cart.
 
+Both apply to the default widget, also when it runs as the [desktop side panel](./05-side-panel.md). Mobile AI Mode ([`widgetTemplate: 'ai_mode'`](../reference/weblayer-config.md#widgettemplate)) supports only [`fn.getProductImageUrl`](#fngetproductimageurl), [`fn.getProductPrices`](#fngetproductprices) and [`fn.getLinkOptions`](#fngetlinkoptions).
+
 These are set via `window.CLARITY_CONFIG.ui` — see [`widget-config.md → ui.component / ui.fn`](../reference/widget-config.md#ui--appearance--behavior) for where they live in the full config.
 
 ---
@@ -24,7 +26,7 @@ Each accepts a mount function: `(el, props) => { update?, cleanup?, config? } | 
 | `props` | The component props (see below) |
 | `update` | Optional; called when props change without unmounting |
 | `cleanup` | Optional; called when the component is removed |
-| `config.updateForComponentAction` | Optional; `false` by default — `update` is only called for external widget actions (e.g. opening a different product). Set to `true` to also call `update` when the dep change was triggered by a callback the component itself fired (e.g. `onVariantSelect`). |
+| `config.updateForComponentAction` | Optional; `true` by default — `update` is called for every change. With `false`, a change caused by any callback the component itself fired (`onVariantSelect`, `onProductClick`, `onFollowUp`, …) does not call `update`, for every prop that change touched, including the ones the widget derives from it, such as `disabled` once the selection limit is reached. Only opt out when your component does not render those props from `update`. |
 
 The callbacks in `props` always act on the widget's current state, so the ones received at mount stay valid for the component's whole life — there is no need to re-bind them from `update`.
 
@@ -42,7 +44,7 @@ The callbacks in `props` always act on the widget's current state, so the ones r
 | `onFollowUp` | Call this to select this product and focus the chat input so the shopper can type a follow-up question (same as the built-in "Ask follow up" action) |
 | `onShowSimilar` | Call this to select this product and ask the assistant for similar products (same as the built-in "Find similar" action). Closes the mini-PDP. |
 
-`update` is triggered by changes to `product` or `selectedVariant`. It is only called for external widget actions (e.g. opening a different product card) — **not** when the change was caused by `onVariantSelect` being invoked inside the component, unless `config.updateForComponentAction: true` is returned.
+`update` is triggered by changes to `product` or `selectedVariant` (see [`config.updateForComponentAction`](#component-overrides)).
 
 #### ProductCard
 
@@ -50,7 +52,7 @@ The callbacks in `props` always act on the widget's current state, so the ones r
 |------|-------------|
 | `product` | The [product](#product) |
 | `visited` | `false` while lazy-mounted and not yet scrolled into view — render a placeholder and defer your fetch; flips to `true` (via `update`) once in view. Always `true` when lazy mounting is off. See [Lazy mounting](#lazy-mounting). |
-| `isSelected` | `true` in multi-select mode when this card is selected |
+| `isSelected` | `true` when this product (or one of its variants) is in the current selection: compare mode, "Ask follow up" or "Find similar" |
 | `isDisabled` | `true` when the selection limit is reached and this card is not selected. Render it as not clickable: an `onProductClick` from a disabled card is ignored by the widget. |
 | `selectedVariant` | Currently selected variant for this card (`undefined` if none chosen) |
 | `onVariantSelect(variantId)` | Call this when the user picks a variant on the card |
@@ -61,7 +63,7 @@ The callbacks in `props` always act on the widget's current state, so the ones r
 | `onShowSimilar` | Call this to select this product and ask the assistant for similar products (same as the built-in "Find similar" action) |
 | `onEllipsisClick(anchorEl, productId, position?)` | Call this to open the built-in product action menu (Ask follow up / Find similar / Go to product page) anchored to `anchorEl` (e.g. an ellipsis button). `position` controls where the menu appears relative to the anchor and defaults to `'top-right'` when `ui.useAddToCart` is on, `'top-left'` otherwise, see [`Position`](#position). `productId` is accepted for signature parity with the carousel slot. |
 
-`update` is triggered by changes to `isSelected` or `isDisabled`. It is only called for external widget actions — **not** when the change was caused by `onProductClick` or `onAddToCart` being invoked inside the component, unless `config.updateForComponentAction: true` is returned.
+`update` is triggered by changes to `isSelected` or `isDisabled` (see [`config.updateForComponentAction`](#component-overrides)).
 
 #### ProductCarousel
 
@@ -71,20 +73,20 @@ Receives the full list of products in one mount instead of one card at a time. W
 |------|-------------|
 | `products` | The full array of [products](#product) in this carousel |
 | `visited` | `false` while lazy-mounted and not yet scrolled into view — render a placeholder and defer your fetch; flips to `true` (via `update`) once in view. Always `true` when lazy mounting is off. See [Lazy mounting](#lazy-mounting). |
-| `selected` | `Set<number>` of **indices into `products`** (not product ids) that are currently selected (multi-select mode) |
+| `selected` | `Set<number>` of **indices into `products`** (not product ids) that are in the current selection (compare mode, "Ask follow up" or "Find similar") |
 | `disabled` | `Set<number>` of **indices into `products`** (not product ids) that are disabled (selection limit reached and not selected). Render them as not clickable: an `onProductClick` for a disabled product is ignored by the widget. |
 | `selectedVariant` | The currently selected variant across the carousel (`undefined` if none). Only one variant is selected at a time, regardless of which product it belongs to. |
 | `onVariantSelect(variantId)` | Call this when the user picks a variant. |
 | `onProductClick(productId)` | Call with a product **or variant** id when the user clicks a card. Resolves to the owning product (opens the mini-PDP, or toggles selection in compare mode). |
 | `onOpenMiniPDP(productId)` | Call with a product **or variant** id to always open the mini-PDP for the owning product, regardless of select mode. |
-| `onAddToCart(productId, config?)` | Call with a product **or variant** id when the user clicks add-to-cart. When a variant id is passed, that variant is added; for a product id, the variant last passed to `onVariantSelect` for that product, otherwise the product itself. Routes through `fn.addToCart` exactly like the built-in button. Pass `{ skipAddToCartFn: true }` to only log the `addToCart` event without invoking `fn.addToCart` (e.g. when your component already handles the add itself). |
+| `onAddToCart(productId, config?)` | Call with a product **or variant** id when the user clicks add-to-cart. A variant id adds that variant, a product id adds the product's own entry (the first entry of its `variants`); to add the variant the shopper picked, pass its id. Routes through `fn.addToCart` exactly like the built-in button. Pass `{ skipAddToCartFn: true }` to only log the `addToCart` event without invoking `fn.addToCart` (e.g. when your component already handles the add itself). |
 | `onFollowUp(productId)` | Call with a product **or variant** id to select the owning product and focus the chat input for a typed follow-up (same as the built-in "Ask follow up" action). |
 | `onShowSimilar(productId)` | Call with a product **or variant** id to select the owning product and ask the assistant for similar products (same as the built-in "Find similar" action). |
 | `onEllipsisClick(anchorEl, productId, position?)` | Call to open the built-in product action menu (Ask follow up / Find similar / Go to product page) for the given product, anchored to `anchorEl` (e.g. an ellipsis button). Pass a product **or variant** id; the widget resolves the owning product. `position` controls where the menu appears relative to the anchor and defaults to `'top-right'` when `ui.useAddToCart` is on, `'top-left'` otherwise, see [`Position`](#position). |
 
 `onProductClick`, `onOpenMiniPDP`, `onAddToCart`, `onFollowUp`, `onShowSimilar`, and `onEllipsisClick` accept either a product id or any of that product's variant ids — the widget looks up the matching product/variant for you.
 
-`update` is triggered by changes to `products`, `selected`, or `disabled`. As with the other slots, it is only called for external widget actions — **not** when the change was caused by `onProductClick` / `onAddToCart` being invoked inside the component, unless `config.updateForComponentAction: true` is returned.
+`update` is triggered by changes to `products`, `selected`, or `disabled` (see [`config.updateForComponentAction`](#component-overrides)).
 
 ### Lazy mounting
 
@@ -267,7 +269,7 @@ The second argument, `config`, carries:
 - `{ status: 'success' | 'failed'; message?: string }` — synchronous result.
 - `Promise<void | { status; message? }>` — async result.
 
-Returning a result lets the widget reflect outcome state on the UI. The built-in carousel "Add to cart" button transitions through `Adding` → `Added` / `Failed` and resets after 3s — the `Failed` label appears when `addToCart` returns `{ status: 'failed' }`, `Added` when it returns `{ status: 'success' }`; a throw or rejection also shows `Failed`. When `addToCart` returns nothing (`void`), the button silently returns to its idle state — nothing appears to happen. A custom `MiniPDP` (or any consumer) can reflect the same outcome on its own UI.
+Returning a result lets the widget reflect outcome state on the UI. The built-in carousel "Add to cart" button transitions through `Adding` → `Added` / `Failed` and resets after 3s — the `Failed` label appears when `addToCart` returns `{ status: 'failed' }`, `Added` when it returns `{ status: 'success' }`; a throw or rejection also shows `Failed`. When `addToCart` returns nothing (`void`), the button silently returns to its idle state — nothing appears to happen.
 
 The built-in `MiniPDP` also renders its own "Add to cart" button (below the variant options / variant questions) whenever `fn.addToCart` is defined. It shares the same `Adding` → `Added` / `Failed` outcome handling as the carousel button and routes clicks through the same handler.
 
@@ -293,7 +295,7 @@ window.CLARITY_CONFIG.ui = {
 }
 ```
 
-`product` is a [product](#product) after variant enrichment: on the mini-PDP, and on a product card with the in-card variant selector ([`enableProductCardVariantSelection`](../reference/widget-config.md#display-toggles)), it is the selected variant (a default variant until one is picked, the product itself when it has none), so it has no `variants`; otherwise it is the product with its `variants`. Stock-related variant fields are available when Bloomreach has registered your catalog's stock attributes (e.g. `in_stock`) on your agent; those attributes are excluded from the mini-PDP dimension picker but remain on each variant object for use in this callback.
+`product` is a [product](#product) after variant enrichment: on the mini-PDP, and on a product card with the in-card variant selector ([`enableProductCardVariantSelection`](../reference/widget-config.md#display-toggles)), it is the selected variant (a default variant until one is picked, the product itself when it has none), so it has no `variants`; otherwise it is the product with its `variants`. Stock-related variant fields are available when Bloomreach has registered your catalog's stock attributes (e.g. `in_stock`) on your agent; those attributes are excluded from the variant dimension selectors but remain on each variant object for use in this callback.
 
 ### `fn.showCheckoutButton`
 
@@ -359,7 +361,7 @@ window.CLARITY_CONFIG.ui = {
 - **`config.source`** — the link type (same values as `urlClick`'s `link_type`: `'text_url'`, `'product_card'`, `'product_card_menu'`, `'mini_pdp_product'`).
 - **`config.product`** / **`config.parentProduct`** — for product links, the clicked item and the top-level product owning it (as in `goToProductPage`); unset for text links. Copies, so they can be modified freely.
 
-It must return synchronously, since a tab opened after waiting may be blocked as a popup: a returned Promise (e.g. from an `async` function) is ignored with a console warning and `openPdpInNewTab` applies. If it throws, the error is logged to the console and `openPdpInNewTab` applies too. It is not called when `fn.goToProductPage` is set (that callback owns product navigation), for `.pdf` text links in the default widget (opened in the in-chat PDF viewer; AI Mode has no PDF viewer, so there they do go through it), for the header's links, or for links sent by a live agent, which always open in a new tab.
+It must return synchronously, since a tab opened after waiting may be blocked as a popup: a returned Promise (e.g. from an `async` function) is ignored with a console warning and `openPdpInNewTab` applies. If it throws, the error is logged to the console and `openPdpInNewTab` applies too. It is not called when `fn.goToProductPage` is set in the default widget (that callback owns product navigation; AI Mode does not use `goToProductPage`), for `.pdf` text links in the default widget (opened in the in-chat PDF viewer; AI Mode has no PDF viewer, so there they do go through it), for the header's links, or for the buttons and carousel links in an external agent's attachments, which always open in a new tab. Text links in an external agent's message go through it like any other text link.
 
 ### `fn.seeAllResults`
 
@@ -420,6 +422,25 @@ Notes:
 - Values are formatted by the widget as usual (currency symbol, [`ui.priceDecimalPlaces`](../reference/widget-config.md#feature-flags), price ranges). A string like `'$12.00'` is accepted, same as in the response.
 - Not applied inside a custom `ProductCard` / `MiniPDP` [component override](#component-overrides) — those render their own prices and receive the raw product.
 
+### `fn.getProductImageUrl`
+
+Lets the host site supply product and variant image URLs, e.g. from its own image service. Called for a product card's main image, the mini-PDP's main image and variant swatches, and AI Mode's product grid and quick view. The color swatches of a product card's variant selector keep the response's `swatch_image` / `image`.
+
+```js
+window.CLARITY_CONFIG.ui = {
+  fn: {
+    getProductImageUrl(variantId, mainProductId) {
+      return `https://images.example.com/${mainProductId}/${variantId}.jpg`
+    }
+  }
+}
+```
+
+- **`variantId`** — the id of the item whose image is shown: the selected variant on a product card with the variant selector ([`enableProductCardVariantSelection`](../reference/widget-config.md#display-toggles)) and in the mini-PDP, each variant in the mini-PDP's swatches, otherwise the product itself. AI Mode always passes the product's id.
+- **`mainProductId`** — the id of the top-level product; equals `variantId` when the image is the product's own.
+
+The returned URL is tried first; if it fails to load, the image from the Clarity response is shown instead. Return `undefined` or `null` to keep the response's image. It must return synchronously and runs on every render, so keep it cheap. Not applied inside a custom [component override](#component-overrides), which receives the raw product.
+
 ### `fn.hideSearchResultCarousels`
 
 Decides whether plain search results (`result_source: 'SEARCH'`) go to your page instead of the chat. While it returns `true`, the widget does not render their carousel or its Compare button, does not count them towards the unread badge on the collapsed widget, and hands them to your page through [`searchedProducts`](../reference/hooks.md#searchedproducts), both live and when replaying chat history. While it returns `false`, they render in the chat like any other carousel and are not sent to the page. Unset, it behaves as `true` under [`desktopTemplate: 'ai_mode'`](../reference/widget-config.md#desktop-ai-mode-side-panel) and as `false` otherwise.
@@ -464,12 +485,12 @@ Every product the widget hands to your code — `product` and `selectedVariant` 
 | `currency` | `string \| null` | ISO 4217 code or symbol |
 | `description` | `string \| null` | |
 | `variantAttributeList` | `string[] \| null` | Names of the attributes that distinguish the variants (size, color, …) |
-| `variants` | `Product[] \| null` | The product's variants; each is a product without `variants` and `extraVariantFields`, with its own attribute values flattened onto the root |
+| `variants` | `Product[] \| null` | The product's variants. In the default widget, the first entry is the product's own entry, with the product's `id`; each is a product without `variants` and `extraVariantFields`, with its own attribute values flattened onto the root |
 | `extraVariantFields` | `Record<string, unknown> \| null` | Additional variant-level fields |
 | `questions` | `{ question: string; answer: string \| null; identifier: string \| null }[] \| null` | Product questions the assistant can answer |
 | `review` | `{ count: number \| null; averageRating: number \| null } \| null` | Review summary |
 
-The object is open: product attributes that Bloomreach has configured on your agent (the attributes shown as tags on the built-in card, the stock attributes, the attribute logged as category) are present as additional root fields under their catalog names, on the product and on each variant.
+The object is open: product attributes that Bloomreach has configured on your agent (the attributes shown as tags on the built-in card, the stock attributes, the attribute logged as category) are present as additional root fields under their catalog names on the product. Variants carry the mini-PDP and stock attributes; read the card tags and the attribute logged as category from the top-level product.
 
 ### MountFnResult
 
@@ -480,8 +501,8 @@ type MountFnResult<Props> = {
   update?: (props: Props) => void   // called when props change without unmounting
   cleanup?: () => void              // called when the component is removed
   config?: {
-    // false (default): update is called only for external widget actions. true: also when the
-    // change was caused by a callback this component itself fired (e.g. onVariantSelect)
+    // true (default): update is called for every change. false: not for a change caused by any
+    // callback this component itself fired, for every prop that change touched
     updateForComponentAction?: boolean
   }
 } | void

@@ -37,7 +37,7 @@
 
 | Field | Type | Description |
 |---|---|---|
-| `productIds` | `string[] \| string` | Product/item IDs for the current page (a string is split by `PARAM_arraySplitter`). Passed as `currentItemIds` or `currentItemId` in `getContext`, and used by embedded triggers that support AI-generated questions. |
+| `productIds` | `string[] \| string` | Product/item IDs for the current page (a string is split by `PARAM_arraySplitter`). Passed as `currentItemIds` or `currentItemId` in the weblayer's default `getContext` (not when `widget.getContext` is set), and used by embedded triggers that support AI-generated questions. |
 | `productIdsType` | `'product_id' \| 'item_id'` | Type of IDs in `productIds`. `'item_id'` (default) targets a specific variant; `'product_id'` targets a product with multiple variants. |
 
 ### Chatbot Replacement

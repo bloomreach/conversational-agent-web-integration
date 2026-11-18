@@ -4,7 +4,7 @@ When the widget is delivered by an Engagement weblayer, the weblayer tracks ever
 
 The same fields are what a hook callback or a `Clarity:*` browser event receives, so the page is also the field reference for [`hooks.md`](./hooks.md). In a standalone `window.CLARITY_CONFIG` integration nothing is tracked unless your own hooks forward it.
 
-Extra properties can be added to every tracked event, or to a single hook's event, with the weblayer's [`trackerConfig`](./weblayer-config.md#widget--clarity-widget-settings) (`externalAgentRespond` receives only the `shared` extras). Hooks that are **not** tracked are listed under [Hooks with no action](#hooks-with-no-action).
+Extra properties can be added to every tracked event, or to a single hook's event, with the weblayer's [`trackerConfig`](./weblayer-config.md#widget--clarity-widget-settings) (`externalAgentRespond` and `externalAgentRespondFailed` receive only the `shared` extras). Hooks that are **not** tracked are listed under [Hooks with no action](#hooks-with-no-action).
 
 ---
 
@@ -213,7 +213,7 @@ Sub-event fired once per suggested button alongside `clarity_respond`.
 | `chat_widget_size` | `string` (see `chat_open`) | `externalAgentRespond` |
 | `chat_config` | `object` | `externalAgentRespond` |
 | `agent_type` | `'customer service'` | `externalAgentRespond` |
-| `agent_name?` | `string` | `externalAgentRespond` |
+| `agent_name` | `string` | `externalAgentRespond` |
 | `message?` | `string` | `externalAgentRespond` |
 | `error_message?` | `string` | `externalAgentRespond` |
 | `response_json` | `string` — JSON-encoded attachments array | `externalAgentRespond` |
@@ -226,6 +226,21 @@ Sub-event fired once per suggested button alongside `clarity_respond`.
 A reply delivered by helpdesk webhook (e.g. Zendesk Sunshine Conversations) belongs to no request, so
 it carries `received_at`/`delay_ms` instead of `latency`. `delay_ms` is measured against the client
 clock and can skew; `received_at` is the server's own value.
+
+### `external_agent_respond_failed`
+
+| Field | Type / Values | Hook |
+|---|---|---|
+| `agent_id` | `string` | `externalAgentRespondFailed` |
+| `conversation_state` | `string` (see `chat_open`) | `externalAgentRespondFailed` |
+| `chat_widget_state` | `string` (see `clarity_respond`) | `externalAgentRespondFailed` |
+| `chat_widget_size` | `string` (see `chat_open`) | `externalAgentRespondFailed` |
+| `chat_config` | `object` | `externalAgentRespondFailed` |
+| `agent_type` | `'customer service'` | `externalAgentRespondFailed` |
+| `agent_name` | `string` (see `external_agent_respond`) | `externalAgentRespondFailed` |
+| `error_message` | `string` — the processing step that failed and the error type | `externalAgentRespondFailed` |
+| `external_conversation_id` | `string` | `externalAgentRespondFailed` |
+| `received_at` | `string` — ISO, when the backend stored the failure | `externalAgentRespondFailed` |
 
 ### `url_click`
 
@@ -259,7 +274,7 @@ Fired on every add-to-cart click that reaches the handler (disabled buttons neve
 
 ### `checkout`
 
-Fired when the shopper starts a PayPal checkout with the mini PDP's Buy now button, before the overlay opens.
+Fired when the shopper starts a PayPal checkout with the mini PDP's Buy now button, before the checkout overlay opens.
 
 | Field | Type / Values | Hook |
 |---|---|---|
@@ -416,6 +431,7 @@ Fired the moment the user clicks an action in a product menu, alongside the down
 | `location` | `'Back-end'` \| `'Front-end'` (injecting events failed) \| an `'FE:…'` origin (transient network error) | `clarityWarning` |
 | `type` | `string` | `clarityWarning` |
 | `message` | `string` — truncated to 2000 chars | `clarityWarning` |
+| `agent_name?` | `string` (see `external_agent_respond`) — only when receiving that external agent's replies failed | `clarityWarning` |
 
 ### `clarity_error`
 
@@ -426,6 +442,7 @@ Fired the moment the user clicks an action in a product menu, alongside the down
 | `location` | `'Back-end'` \| `'FE:user_active'` \| `'FE:user_passive'` \| `'FE:chat_closed'` \| `'FE:app_error_boundary'` \| `'FE:error'` | `clarityError` |
 | `type` | `string` | `clarityError` |
 | `message` | `string` — truncated to 2000 chars | `clarityError` |
+| `agent_name?` | `string` (see `external_agent_respond`) — only when receiving that external agent's replies failed | `clarityError` |
 | `chat_widget_state?` | `string` (see `clarity_respond`) — `'Back-end'` only | `clarityError` |
 | `chat_widget_size?` | `string` (see `chat_open`) — `'Back-end'` only | `clarityError` |
 | `chat_config?` | `object` — `'Back-end'` only | `clarityError` |

@@ -80,6 +80,7 @@ Fired by the chat widget. Each hook lists the analytics **action** the weblayer 
 | `clarityRespondProduct` | `clarity_respond_product` |
 | `clarityRespondButton` | `clarity_respond_button` |
 | `externalAgentRespond` | `external_agent_respond` |
+| `externalAgentRespondFailed` | `external_agent_respond_failed` |
 | `urlClick` | `url_click` |
 | `addToCart` | `add_to_cart` |
 | `checkout` | `checkout` |
@@ -244,11 +245,23 @@ Fired when an external agent returns a response — the provider's own bot (`res
 
 **Action:** `external_agent_respond`
 
-Fields: `agent_id`, `source`, `conversation_state`, `chat_widget_state`, `chat_widget_size`, `chat_config`, `agent_type`, `agent_name`?, `message`?, `error_message`?, `response_json`, `response_source`, `external_conversation_id`?, `latency`?, `received_at`?, `delay_ms`?
+Fields: `agent_id`, `source`, `conversation_state`, `chat_widget_state`, `chat_widget_size`, `chat_config`, `agent_type`, `agent_name`, `message`?, `error_message`?, `response_json`, `response_source`, `external_conversation_id`?, `latency`?, `received_at`?, `delay_ms`?
 
 > A reply delivered asynchronously by helpdesk webhook (e.g. Zendesk Sunshine Conversations) answers
 > no request, so it carries `received_at` (when the backend received it) and `delay_ms` instead of
 > `latency`.
+
+---
+
+#### `externalAgentRespondFailed`
+
+Fired when a message or update an external agent sent by helpdesk webhook (e.g. Zendesk Sunshine
+Conversations) could not be processed; the shopper sees an error message. It belongs to no shopper
+message.
+
+**Action:** `external_agent_respond_failed`
+
+Fields: `agent_id`, `source`, `conversation_state`, `chat_widget_state`, `chat_widget_size`, `chat_config`, `agent_type`, `agent_name`, `error_message`, `external_conversation_id`, `received_at`
 
 ---
 
@@ -278,7 +291,7 @@ Fields: `agent_id`, `source`, `conversation_state`, `chat_widget_size`, `chat_co
 
 #### `checkout`
 
-Fired when the shopper starts a PayPal checkout with the mini PDP's **Buy now** button (shown when `ui.enableCheckOut` is on). Fires before the PayPal overlay opens.
+Fired when the shopper starts a PayPal checkout with the mini PDP's **Buy now** button (shown when `ui.enableCheckOut` is on). Fires before the checkout overlay opens.
 
 **Action:** `checkout`
 
@@ -298,7 +311,7 @@ Each `checkout` settles at most once, with one of these three hooks. A checkout 
 | `checkoutCancel` | `checkout_cancel` | the checkout ended without a payment or an error | same as `checkout`, plus `message` |
 | `checkoutError` | `checkout_error` | setting up the checkout failed (the PayPal client token request or loading the PayPal SDK) or took longer than 45 seconds, or the PayPal SDK threw (e.g. the cart could not be created because an item id is unknown to PayPal) or returned an unexpected status | same as `checkout`, plus `error`: the failure's message, `'PayPal setup timed out'` for the 45-second limit, or `'PayPal status <status>'` for an unexpected status |
 
-`message` of `checkoutCancel` says what ended the checkout: `'paypal_closed'` (the shopper closed the PayPal payment sheet), `'chat_closed'` (the chat was closed, cleared or reset while the checkout was open) or `'new_checkout'` (the shopper started another checkout before this one settled).
+`message` of `checkoutCancel` says what ended the checkout: `'paypal_closed'` (the shopper closed the PayPal checkout without paying), `'chat_closed'` (the chat was closed, cleared or reset while the checkout was open) or `'new_checkout'` (the shopper started another checkout before this one settled).
 
 ---
 
@@ -344,7 +357,7 @@ Fields: `agent_id`, `source`, `conversation_state`, `chat_widget_size`, `chat_co
 
 #### `productMenuClick`
 
-Fired the moment the user clicks one of the actions in a product menu. Captures menu engagement directly, in addition to the downstream event the chosen action triggers (`selectProduct` for "Ask follow up", `userRespond`/`userRespondProduct` for "Find similar", `urlClick` for "Go to product page"). The `source_type` field identifies where the menu was invoked from: the built-in template or a customized product card (`'product_card'`), a customized carousel (`'carousel'`), or a customized miniPDP / quick view (`'quick_view'`). Note: customized carousel and miniPDP overrides only expose "Ask follow up" and "Find similar" actions.
+Fired the moment the user clicks one of the actions in a product menu. Captures menu engagement directly, in addition to the downstream event the chosen action triggers (`selectProduct` for "Ask follow up", `userRespond`/`userRespondProduct` for "Find similar", `urlClick` for "Go to product page"). The `source_type` field identifies where the menu was invoked from: the built-in template or a customized product card (`'product_card'`), a customized carousel (`'carousel'`), or a customized miniPDP / quick view (`'quick_view'`). The `onFollowUp` / `onShowSimilar` callbacks of a customized carousel log `'carousel'`; the built-in menu it opens through `onEllipsisClick` logs `'product_card'`.
 
 **Action:** `product_menu_click`
 
@@ -420,7 +433,7 @@ Fired when a non-fatal warning is logged (e.g. inject event failure).
 
 **Action:** `clarity_warning`
 
-Fields: `agent_id`, `source`, `conversation_state`, `chat_widget_state`, `chat_widget_size`, `chat_config`, `location` (`'Back-end'`, `'Front-end'` or an `'FE:…'` origin), `type`, `message` (truncated to 2000 chars)
+Fields: `agent_id`, `source`, `conversation_state`, `chat_widget_state`, `chat_widget_size`, `chat_config`, `location` (`'Back-end'`, `'Front-end'` or an `'FE:…'` origin), `type`, `message` (truncated to 2000 chars), `agent_name`?
 
 ---
 
@@ -430,7 +443,7 @@ Fired when a fatal error is logged.
 
 **Action:** `clarity_error`
 
-Fields: `agent_id`, `source`, `conversation_state`, `location`, `type`, `message` (truncated to 2000 chars), `chat_widget_state`?, `chat_widget_size`?, `chat_config`?, `latency`?
+Fields: `agent_id`, `source`, `conversation_state`, `location`, `type`, `message` (truncated to 2000 chars), `chat_widget_state`?, `chat_widget_size`?, `chat_config`?, `latency`?, `agent_name`?
 
 > Errors reported while handling a chat response (`location` `'Back-end'`) carry the widget-state fields and `latency`. Errors caught in the widget itself (`location` `'FE:user_active'` \| `'FE:user_passive'` \| `'FE:chat_closed'` \| `'FE:app_error_boundary'` \| `'FE:error'`) carry none of them, and `conversation_state` may be an empty string.
 
@@ -460,13 +473,13 @@ Actionable callbacks rather than analytics: the weblayer does not track them. Se
 
 #### `processingMessage`
 
-Fired when the plugin starts or stops waiting for an AI response.
+Fired when the widget starts and finishes sending to the chat: every message, and also background sends such as the chat sync on page load.
 
 ```ts
 processingMessage?: (processing: boolean) => void
 ```
 
-`processing` — `true` when a response is in progress, `false` when complete.
+`processing` — `true` when the send starts, `false` when it finishes. While an answer streams, `true` can repeat with a new `notificationText`.
 
 > The `CustomEvent` carries the full params (`processing`, `agent_id`, `source`, `notificationText`), but the handler function receives only the `boolean`.
 
@@ -523,7 +536,7 @@ All properties that can appear in the params object of a Clarity hook.
 | `source` | `string` | Weblayer identifier (`"{weblayerId}::{weblayerName}"`) | all |
 | `conversation_state` | `string` | State of the conversation at the time of the event. Values: `'conversation'` (user active within last 10 min) \| `'idle'` (last user message over 10 min ago, or events exist but no user messages) \| `'initial_message'` (only the assistant's initial message, no user messages) \| `'welcome_message'` (assistant has replied beyond initial message, no user messages) \| `'home_screen'` (home screen mode, no messages) \| `'none'` (completely empty). Empty string on a `clarityError` caught in the widget itself | all engagement hooks except `initialized`, `surveyShow`, `surveyClosed`, `feedbackSubmitted` |
 | `chatId` | `string` | ID of the chat conversation (the tracked event also carries it as `chat_id`) | all engagement hooks except `initialized`, `surveyShow`, `surveyClosed`, `feedbackSubmitted`, and `clarityError` caught in the widget itself |
-| `chat_widget_state` | `string` | Visibility state of the widget: `'open'` \| `'bubble'` \| `'minimized'` | `reloaded`, `widgetShown`, `productMenuClick`, `clarityRespond`, `clarityRespondProduct`, `clarityRespondButton`, `externalAgentRespond`, `clarityWarning`, `clarityError` (`'Back-end'` only) |
+| `chat_widget_state` | `string` | Visibility state of the widget: `'open'` \| `'bubble'` \| `'minimized'` | `reloaded`, `widgetShown`, `productMenuClick`, `clarityRespond`, `clarityRespondProduct`, `clarityRespondButton`, `externalAgentRespond`, `externalAgentRespondFailed`, `clarityWarning`, `clarityError` (`'Back-end'` only) |
 | `chat_widget_size` | `string` | Size of the open widget: `'large'` \| `'small'` \| `'full_screen'` \| `'half_screen'`. Only present when `chat_widget_state` is `'open'` | all engagement hooks except `initialized`, `surveyShow`, `surveyClosed`, `feedbackSubmitted`, and `clarityError` caught in the widget itself |
 | `chat_config` | `object` | Snapshot of the plugin config at the time of the event (sensitive keys excluded) | all engagement hooks except `initialized`, `surveyShow`, `surveyClosed`, `feedbackSubmitted`, and `clarityError` caught in the widget itself |
 | `has_chat` | `boolean` | Whether the chat has any messages | `initialized` |
@@ -581,11 +594,11 @@ All properties that can appear in the params object of a Clarity hook.
 | `feedback_target_product_ids` | `string[]` | Product IDs from carousels that received the thumbs reaction | `thumbsUp`, `thumbsDown` |
 | `feedback_message` | `string` | Optional text comment submitted alongside a reaction or survey | `thumbsUp`, `thumbsDown`, `feedbackSubmitted` |
 | `feedback_state` | `number` | Numeric score from a survey submission | `feedbackSubmitted` |
-| `agent_type` | `string` | Type of external agent. Always `'customer service'` | `externalAgentRespond` |
-| `agent_name` | `string` | External agent identifier | `externalAgentRespond` |
-| `error_message` | `string` | Error description returned by an external agent | `externalAgentRespond` |
+| `agent_type` | `string` | Type of external agent. Always `'customer service'` | `externalAgentRespond`, `externalAgentRespondFailed` |
+| `agent_name` | `string` | External agent identifier. On `clarityWarning` and `clarityError`, set only when the widget failed to receive that agent's replies (its reply stream, or a chat sync while the widget is waiting for that agent's replies) | `externalAgentRespond`, `externalAgentRespondFailed`, `clarityWarning`, `clarityError` |
+| `error_message` | `string` | Why the exchange with an external agent failed. On `externalAgentRespondFailed`, the processing step that failed and the error type | `externalAgentRespond`, `externalAgentRespondFailed` |
 | `response_json` | `string` | JSON-encoded array of attachments from an external agent | `externalAgentRespond` |
-| `external_conversation_id` | `string` | Conversation ID from the external agent system | `externalAgentRespond` |
+| `external_conversation_id` | `string` | Sierra's conversation ID; for a helpdesk hand-over (e.g. Zendesk), the chat's own ID | `externalAgentRespond`, `externalAgentRespondFailed` |
 | `location` | `string` | For `clarityWarning`/`clarityError`: origin of the warning or error — `'Back-end'` (raised while handling a chat response), `'Front-end'` (warning: injecting events failed), or where the widget caught it: `'FE:user_active'` \| `'FE:user_passive'` \| `'FE:chat_closed'` \| `'FE:app_error_boundary'` \| `'FE:error'`. For `addToCart`: where the click originated (`'product card'` \| `'miniPDP'` \| `'customized product card'` \| `'customized product carousel'` \| `'customized miniPDP'`) | `clarityWarning`, `clarityError`, `addToCart` |
 
 ---

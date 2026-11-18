@@ -83,9 +83,10 @@ Each event links to its params in [`hooks.md`](../reference/hooks.md).
 | Event | Fires when | Typical use |
 |---|---|---|
 | [`Clarity:userRespond`](../reference/hooks.md#userrespond) | The shopper sends a message, a quick reply or a button; `type` says which | Count questions |
-| [`Clarity:processingMessage`](../reference/hooks.md#processingmessage) | An answer starts (`processing: true`) and ends (`false`) | Show your own loading state |
+| [`Clarity:processingMessage`](../reference/hooks.md#processingmessage) | Sending to the chat starts (`processing: true`) and ends (`false`): every message, and background sends such as the chat sync on page load | Show your own loading state |
 | [`Clarity:clarityRespond`](../reference/hooks.md#clarityrespond) | The assistant answers; `product_ids` lists the products shown | Know which products were recommended |
 | [`Clarity:externalAgentRespond`](../reference/hooks.md#externalagentrespond) | A customer-service agent answers after a [hand-over](08-customer-service-zendesk.md) | |
+| [`Clarity:externalAgentRespondFailed`](../reference/hooks.md#externalagentrespondfailed) | A customer-service agent's message or update could not be processed; the shopper sees an error message | |
 | [`Clarity:initialMessage`](../reference/hooks.md#initialmessage) | The initial assistant message has loaded | |
 | [`Clarity:searchedProducts`](../reference/hooks.md#searchedproducts) | Search results are handed to your page by [`fn.hideSearchResultCarousels`](03-customize-components.md#fnhidesearchresultcarousels) | Render the results on your page |
 
@@ -146,6 +147,7 @@ On a weblayer page each tracked hook becomes an Engagement event named `clarity`
 | [`clarity_respond_product`](../reference/analytics-events.md#clarity_respond_product) | `Clarity:clarityRespondProduct`, one per product |
 | [`clarity_respond_button`](../reference/analytics-events.md#clarity_respond_button) | `Clarity:clarityRespondButton`, one per suggested button |
 | [`external_agent_respond`](../reference/analytics-events.md#external_agent_respond) | `Clarity:externalAgentRespond` |
+| [`external_agent_respond_failed`](../reference/analytics-events.md#external_agent_respond_failed) | `Clarity:externalAgentRespondFailed` |
 | [`url_click`](../reference/analytics-events.md#url_click) | `Clarity:urlClick` |
 | [`mini_pdp_click`](../reference/analytics-events.md#mini_pdp_click) | `Clarity:miniPdpClick` |
 | [`close_mini_pdp`](../reference/analytics-events.md#close_mini_pdp) | `Clarity:closeMiniPdp` |
