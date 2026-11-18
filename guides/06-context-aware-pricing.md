@@ -152,15 +152,17 @@ does not send while a response is still streaming. A changed list therefore appl
 
 - **Displayed prices:** the entries without `attachedTo`, in list order, that have a value, at most 2. An entry with
   `attachedTo` is shown struck through, only if the entry it names is displayed and it is higher.
-- **Product card:** one price, or a low–high range for two. No labels. The discount badge shows only for a single price
+- **Product card:** one price, or a low–high range for two. No labels. A struck-through price shows only when every displayed price has one. The discount badge shows only for a single price
   with `showDiscountPercentage`. `supportPriceRange` spans the variants unless the card has a variant selector.
 - **Mini-PDP and AI Mode quick view:** one labelled price per displayed entry (`displayName`, else the attribute name
   in title case), with its attached prices struck through. No badge, no range.
 - **AI Mode grid:** like the product card, without strike-through or badge.
+- AI Mode shows these prices only in a chat for which the widget has sent a list, see [Known issues](#known-issues).
 - If no displayed entry has a value, the card falls back to the regular price rendering.
 
 In a custom component, the prices arrive on the product as `contextAwarePrices` (`{ name: value }`) and as flat fields
-on its variants; the product's top-level `price` is empty while the feature is on, unless `price` is in the list.
+on its variants; the product's top-level `price` is empty while the shopper has a list, and a listed `price` arrives in
+`contextAwarePrices.price` like the others.
 
 ### What the shopper sees vs what the agent says
 
@@ -170,7 +172,7 @@ The agent and the product cards get their prices along two different paths, so t
 |---|---|---|---|
 | **`getProductPrices` changes the display only.** The agent, analytics and add-to-cart keep the catalog price. | Your price, e.g. $75 | The catalog price, e.g. $80 | Don't use `getProductPrices` for prices the agent must quote. Put them in the catalog as a price attribute instead. |
 | **The widget shows fewer prices than the agent sees.** The agent gets every entry of the list (up to 4). The widget's display rules can hide some of them. | e.g. only `member_price` | `member_price` and `price` | Expected: the agent decides which prices to mention. |
-| **The list changes during the chat** (e.g. the shopper logs in). The agent uses the list from the last message the widget sent. Carousels that were already shown keep their prices. | Earlier cards: the old prices | The new prices | — |
+| **The list changes during the chat** (e.g. the shopper logs in). The agent uses the list from the last message the widget sent. Carousels already shown are rendered with the new list. | Earlier cards: can differ from new ones | The new prices | — |
 
 ---
 
@@ -182,9 +184,9 @@ The agent and the product cards get their prices along two different paths, so t
 | An entry without `attributeName`, a duplicate name, or more than one entry flagged `primary` | The entry without a name is dropped; for a duplicate, the first occurrence is kept; for several primaries, the first flagged entry wins. The rest of the list still applies. | — |
 | More than 4 valid entries | The first 4 are kept. | — |
 | A name longer than 128 characters, or a `primary` that is neither a boolean nor `null` | The **whole** context update is rejected. Nothing in that update reaches the chat, including the current product. | — |
-| The shopper logs in or out during the chat | The new list applies from the next message. Carousels already shown keep their prices. | — |
+| The shopper logs in or out during the chat | The new list applies from the next message. For carousels already shown, see [Known issues](#known-issues). | — |
 | A product has no value for a listed attribute | That price is missing for this product, both for the agent and on the card. If no listed price has a value, the card shows no price. | Ask Bloomreach to configure a fallback, e.g. `member_price` → `price`. |
-| A value that is not a number, e.g. `"call for price"` | The agent and the card show the raw text. Numeric filters don't match the product. | — |
+| A value that is not a number, e.g. `"call for price"` | The agent quotes the raw text. The widget treats it as no value and does not show it. Numeric filters don't match the product. | — |
 | The agent filters or sorts on any of the shopper's prices, or on `price` | The filter or sort is always applied to the **primary** attribute. The agent cannot filter on a non-primary price, e.g. "regular price under $100" for a member filters on `member_price`. | Flag the price shoppers search by as primary. |
 
 ## Known issues
@@ -192,11 +194,12 @@ The agent and the product cards get their prices along two different paths, so t
 - **A reordered list is not re-sent.** If only the order of the entries changes, the widget does not send the list,
   so without a `primary` flag the agent keeps the old primary until another context field changes. Flag the primary
   entry. With more than 4 entries the agent also keeps the old first 4.
-- **AI Mode does not send the pricing fields,** so it uses `price`. Its context updates also clear a list the widget
-  stored in the same chat.
+- **AI Mode does not send the pricing fields:** a chat started there uses `price`, and its context updates (when a
+  product is selected) clear a list the widget stored in the same chat.
 - **Cached `getProductPrices` results:** an async result is cached per product for the life of the page and is not
   refreshed when the shopper logs in or out.
-- **Carousels already shown** keep their prices when the shopper's prices change during the chat.
+- **Carousels already shown** are rendered with the shopper's current list from the price data they were sent with,
+  so after a change of list their prices can differ from new cards', or be missing.
 
 ## See also
 

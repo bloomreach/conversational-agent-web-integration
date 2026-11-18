@@ -38,11 +38,11 @@ document.body
 
 ### clarity-paypal-widget
 
-Rendered inside `clarity-resizable-chat-wrapper` for as long as the chat is open, hidden with the `clarity-paypal-widget-idle` modifier until the mini PDP's Buy now opens a checkout. Full-size overlay above the chat (`z-index: calc(var(--clarity-widget-z-index) + 2)`).
+Rendered inside `clarity-resizable-chat-wrapper` for as long as the chat is open, hidden with the `clarity-paypal-widget-idle` modifier until the mini PDP's Buy now opens a checkout. Full-size checkout overlay above the chat (`z-index: calc(var(--clarity-widget-z-index) + 2)`).
 
 * clarity-paypal-container — mount point for the PayPal SDK payment widget (`#clarity-paypal-container`)
 
-When the SDK or the token fetch fails the overlay closes and the chat shows the `checkoutFailed` text in `clarity-feedback-thank` with the `clarity-feedback-thank--error` modifier.
+When PayPal approves the payment the checkout overlay closes and the chat adds an order confirmation as an assistant message of its own, without feedback buttons; if that message cannot be added, its text shows in `clarity-feedback-thank` with the `clarity-feedback-thank--persistent` modifier until the shopper closes it. When the SDK or the token fetch fails the checkout overlay closes and the chat shows the `checkoutFailed` text in `clarity-feedback-thank` with the `clarity-feedback-thank--error` modifier.
 
 ### clarity-survey-feedback
 
@@ -119,10 +119,11 @@ Before it, with the `mobile_pdp` template or with `showBackdrop`: clarity-mobile
     * clarity-chat-pdp-questions-buttons
       * clarity-chat-pdp-questions-button-text
   * clarity-header
-  * clarity-top-notice-host (the short notice under the header: feedback thanks, checkout result)
-    * clarity-feedback-thank (+ clarity-feedback-thank--error modifier)
+  * clarity-top-notice-host (the short notice under the header: feedback thanks, failed checkout, an order confirmation the chat could not add)
+    * clarity-feedback-thank (+ clarity-feedback-thank--error and clarity-feedback-thank--persistent modifiers)
       * clarity-check-filled-icon or clarity-error-icon
       * clarity-feedback-thank-text
+      * clarity-feedback-thank-close (persistent notice only)
   * clarity-mobile-pdp-backdrop (+ clarity-mobile-pdp-backdrop-show; only with `mobileMiniPDPOverlay`, behind the overlay below)
   * clarity-mini-pdp--inside-container (+ clarity-mini-pdp--inside-container-overlay modifier)
     * clarity-resize-handle (with `mobileMiniPDPOverlay`)
@@ -165,7 +166,7 @@ Modifier: clarity-mini-pdp--inside
     * clarity-mini-pdp-dimensions-name
     * clarity-mini-pdp-dimensions-option (+ active modifier; one button per value when the dimension has at most 3 values)
     * clarity-mini-pdp-dimensions-select (replaces the option buttons when the dimension has more than 3 values, color included)
-  * clarity-mini-pdp-variant-selector (image-based variant selector; shown instead of `clarity-mini-pdp-dimensions` when the variant dimensions are invalid — e.g. an option maps to more than one variant, or a dimension mixes defined and undefined values)
+  * clarity-mini-pdp-variant-selector (image-based variant selector; shown instead of `clarity-mini-pdp-dimensions` when a product with several variants has no variant dimensions)
     * clarity-mini-pdp-variant-selector-selected (label + value row for the hovered/selected variant)
       * clarity-mini-pdp-variant-selector-label (the "Variant:" label)
       * clarity-mini-pdp-variant-selector-value (title of the hovered/selected variant)
@@ -381,11 +382,11 @@ Modifier: clarity-mini-pdp--inside
 
 > **Global styles** — Default styles for `clarity-assistant-carousel-item-wrapper` (the product card shell) are injected as a global style block rooted at `.root_inside_shadow .clarity-assistant-carousel-item-wrapper`, so these rules are scoped to the widget but are **not** component-scoped, and none uses `!important`. The widget adds the block after your stylesheets, so a rule of equal specificity loses; prefix yours with `#cocoaas_chat_wrapper`, see [Style the widget](../guides/02-style-the-widget.md#23-write-overrides-that-win).
 
-The wrapper element renders as `<div role="button" tabindex="0">` with `aria-label`, `aria-pressed` (in select mode), and `aria-disabled` set appropriately. It handles keyboard activation (Enter / Space) on top of the existing click handler.
+The wrapper element renders as `<div role="group" tabindex="0">` (`tabindex="-1"` and `aria-disabled="true"` while the card is disabled). It handles keyboard activation (Enter / Space) on top of the existing click handler.
 
 Modifier: clarity-assistant-carousel-item-wrapper--selected
 
-* clarity-assistant-carousel-item (also carries `class-assistant-carousel-item-${product.id}` for targeting an individual product card; with an overridden `ProductCard` this element is the mount container itself, carries clarity-mount-wrapper too and has no clarity-assistant-carousel-item-wrapper around it)
+* clarity-assistant-carousel-item (also carries `class-assistant-carousel-item-${product.id}` for targeting an individual product card, with the selected variant's id instead when the card shows the variant selector; with an overridden `ProductCard` this element is the mount container itself, carries clarity-mount-wrapper too and has no clarity-assistant-carousel-item-wrapper around it)
   * clarity-assistant-carousel-item-shadow
     * clarity-assistant-carousel-item-content
       * clarity-assistant-carousel-checkbox clarity-assistant-carousel-selected-checkbox (select mode)
@@ -409,7 +410,7 @@ Modifier: clarity-assistant-carousel-item-wrapper--selected
 * clarity-assistant-carousel-product-review
   * clarity-star-filled-icon
 * clarity-assistant-carousel-product-variants
-* clarity-assistant-carousel-product-variant-selection (when `enableProductCardVariantSelection` is on and the product has `color`/`size` variants)
+* clarity-assistant-carousel-product-variant-selection (when `enableProductCardVariantSelection` is on and the product has variant dimensions)
   * clarity-assistant-carousel-product-dimension (color dimension block)
     * clarity-assistant-carousel-product-dimension-selected (label + value row)
       * clarity-assistant-carousel-product-dimension-label
@@ -419,7 +420,10 @@ Modifier: clarity-assistant-carousel-item-wrapper--selected
       * clarity-assistant-carousel-product-dimension-more (the `+N` overflow chip)
   * clarity-assistant-carousel-product-dimension-selected (size dimension block; label + select)
     * clarity-assistant-carousel-product-dimension-label
-    * clarity-assistant-carousel-product-size-select
+    * clarity-assistant-carousel-product-dimension-select clarity-assistant-carousel-product-size-select
+  * clarity-assistant-carousel-product-dimension-selected (one block per other dimension; label + select)
+    * clarity-assistant-carousel-product-dimension-label
+    * clarity-assistant-carousel-product-dimension-select
 * clarity-assistant-carousel-product-spacer
 * clarity-assistant-carousel-product-content-footer-container
   * clarity-assistant-carousel-product-content-footer

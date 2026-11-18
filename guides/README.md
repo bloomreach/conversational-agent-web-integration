@@ -52,9 +52,12 @@ different settings. In this setup your page is involved in four places:
 | Your page provides | Where | Why |
 |---|---|---|
 | A container element for embedded triggers | A CSS selector agreed with Bloomreach (`PARAM_parentElement`) | Panels of suggested questions render *into* your listing or product page, see [Chapter 1](01-triggers.md#how-every-trigger-behaves) |
-| The page context: current product, category, cart | [`getContext()`](../reference/widget-config.md#getcontext-contextfields) and the other context functions, set through the weblayer's widget settings | So the agent answers about the product on screen and the embedded triggers can generate questions for it |
-| The shopper's id | [`getCurrentCustomerId()`](../reference/widget-config.md#getcurrentcustomerid-string) | Identifies the shopper to the agent (Engagement personalization, customer-service hand-over); must return the same id on every call |
-| Styling | Your stylesheet, overriding the widget's and triggers' classes and CSS variables ([`styles.md`](../reference/styles.md)) | The widget inherits nothing from your page by itself |
+| The current product ids | The weblayer's [`productIds`](../reference/weblayer-config.md#product-context), read from your page in a way agreed with Bloomreach | So the embedded triggers can generate questions for the product on screen and, unless the weblayer sets its own `getContext()`, the agent answers about it |
+| The page context: current product, category, cart | [`getContext()`](../reference/widget-config.md#getcontext-contextfields) and the other context functions, set through the weblayer's widget settings | So the agent answers about the product on screen |
+| Styling | Your stylesheet, overriding the widget's and triggers' classes and CSS variables ([`styles.md`](../reference/styles.md)) | The widget inherits nothing from your page by itself; the triggers inherit your page's CSS |
+
+The shopper's id needs nothing from your page: the weblayer passes it as
+[`getCurrentCustomerId()`](../reference/widget-config.md#getcurrentcustomerid-string).
 
 Everything else — custom product cards, add-to-cart, listening to events, the side panel, pricing, search
 orchestration, customer service hand-over — is optional and has its own chapter.

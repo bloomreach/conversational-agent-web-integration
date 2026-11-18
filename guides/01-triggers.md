@@ -62,15 +62,15 @@ field. See [`styles.md` → Trigger Class Hierarchy](../reference/styles.md#trig
 text (a suggested question, the banner text, a quiz answer), sends that text as the shopper's first message.
 When a text is sent, the widget's own initial message is skipped.
 
-**Events.** Every trigger fires `ClarityTrigger:*` browser events (`show` when it scrolls into view, `clicked`,
-…) that your page can listen to, and tracks them to Engagement; see
+**Events.** Triggers fire `ClarityTrigger:*` browser events (`show`, `clicked`, …; which ones and when depends
+on the template) that your page can listen to, and tracks them to Engagement; see
 [`hooks.md` → Trigger Hooks](../reference/hooks.md#trigger-hooks). The weblayer's `trigger.hooks` and
 `trigger.trackerConfig` add your own callbacks and analytics properties.
 
 **Empty state.** An embedded template that would render nothing (no questions came back and none are
 configured) hides itself instead of showing an empty panel. Configure `PARAM_fallbackQuestions` so it has
 content when nothing is generated; it is still hidden when the product or category lookup fails, see
-[`weblayer-config.md`](../reference/weblayer-config.md#plp-embedded--pdp-embedded--interaction-embedded--embedded-chat).
+[`weblayer-config.md`](../reference/weblayer-config.md#review-questions-pdp-embedded--interaction-embedded--embedded-chat).
 
 **One widget per page.** All triggers on a page share one widget. They may differ in template and settings,
 but [`widgetTemplate`](../reference/weblayer-config.md#widgettemplate) has to be the same for all of them.
@@ -120,8 +120,8 @@ exists, and `PARAM_fallbackQuestions` when nothing is generated) or static (`PAR
 anything" button. Renders into `PARAM_parentElement`.
 
 The product is identified by the weblayer's [`productIds`](../reference/weblayer-config.md#product-context),
-which your page provides (through the weblayer's product context or
-[`getContext()`](../reference/widget-config.md#getcontext-contextfields)).
+which the weblayer reads from your page in a way agreed with Bloomreach;
+[`getContext()`](../reference/widget-config.md#getcontext-contextfields) does not feed it.
 
 Click on a question: opens the chat with that question, scoped to the product on the page.
 
@@ -173,8 +173,8 @@ Click on a suggestion: opens the chat with that suggestion as the first message.
 ### Quiz embedded
 
 `triggerTemplate: 'quiz_embedded'`. A step-by-step questionnaire (`quizQuestions`: each with options or a
-free-text field, `PARAM_optionalText` shown after free-text questions), with a progress bar, back and close buttons, an
-optional banner (`PARAM_bannerImage`, `PARAM_bannerText`). Renders into `PARAM_parentElement`.
+free-text field, `PARAM_optionalText` shown after free-text questions), with a progress bar, back and close buttons, and
+a header with a title (`PARAM_bannerText`) and an optional icon (`PARAM_bannerImage`). Renders into `PARAM_parentElement`.
 
 On the last answer: opens the chat, replays the questions and answers into it as the conversation so far, and
 sends the last answer as the message, so the assistant recommends products from the whole questionnaire.

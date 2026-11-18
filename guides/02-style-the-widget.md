@@ -142,17 +142,18 @@ you override:
   embedded trigger renders into an element of your page (the search suggestions into the container your page
   passes them); start with that element's id. The floating trigger sits in `document.body`: start with its root
   classes, such as `.clarity-trigger-id-<banner_id>`, and add selectors or `!important` until your rule wins.
-- **The side panel's** `cocoaas-desktop-ai-mode-*` rules use ids; put `body` in front of the same selector.
+- **The side panel's** `cocoaas-desktop-ai-mode-*` rules use ids and classes; put `body` in front of the same selector.
 - **Properties the widget sets inline**, such as the badge's `padding`, need `!important`.
 
 If an override does not take effect, your browser's developer tools show which rule applies instead, and your
 Bloomreach contact is glad to help.
 
-The widget resets inherited properties at its root, so your page's fonts and colors do not reach it, and every
+The widget resets inherited properties at its root, so your page's fonts and colors are not inherited into it
+(a page rule that targets elements directly, such as `p { color: … }`, still applies), and every
 element in it takes its font family from the configuration: set the font there ([2.1](#21-start-with-the-configuration)),
 not on a class. The menus, the PDF viewer and the triggers have no such reset and inherit from your page, except
-the font family of the menus (from the configuration) and of the embedded triggers (from their own font variable,
-`--cui-param-fontFamily`, …).
+the menus' font family (from the configuration) and their text color (set by the widget), and the font family of the embedded triggers other
+than the search suggestions (from their own font variable, `--cui-param-fontFamily`, …).
 
 ---
 

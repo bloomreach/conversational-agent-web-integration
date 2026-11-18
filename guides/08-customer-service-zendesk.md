@@ -270,7 +270,8 @@ session after conversation becomes inactive* selected there, that also ends the 
 
 **Required for one conversation per live phase.** Every live phase opens a new conversation for the
 same Sunshine user, and without Multi-Conversations the Sunshine app refuses every one after the
-first: from the first ending on, every message routed to Zendesk fails and the shopper sees an error.
+customer's first: from the first ending on, and in any later chat of the same customer, every message routed to
+Zendesk fails and the shopper sees an error.
 Choose that mode only for an app that has the feature on.
 
 With one conversation per customer a second conversation for the same customer is the exception, needed only when:
@@ -358,8 +359,8 @@ What the widget's *Send* does, for every form:
    place Web Messenger's own submission leaves them;
 2. a plain text message follows, `Label: value` per line, which is what fires the dialogue's *Free
    text written* block and moves it on to the escalation;
-3. optionally, fields named `name`, `givenName`, `surname` and `email` also update the customer's
-   profile — see [How the name is written](#how-the-name-is-written) and
+3. optionally, fields named `name`, `givenName` and `surname` also update the Sunshine user's profile
+   and, like `email`, the ticket's requester — see [How the name is written](#how-the-name-is-written) and
    [How the email is written](#how-the-email-is-written).
 
 The answer does **not** arrive as a Sunshine `formResponse` (the Conversations API refuses that
@@ -404,7 +405,7 @@ conversation metadata.
 
 #### How the email is written
 
-The profile's **email never reaches the requester**: Zendesk ignores an unverified email on a user
+An email on the Sunshine profile would **never reach the requester**, so Clarity does not write it there: Zendesk ignores an unverified email on a user
 that carries an external id ([Requester email is not getting
 updated](https://support.zendesk.com/hc/en-us/articles/9532993403546)), and every Sunshine user the
 hand-over creates carries one — unlike Web Messenger's unauthenticated users, whose profile email
@@ -459,7 +460,7 @@ window are lost for good.
 | A human agent's messages after the ending are not delivered | Once a live phase has ended, whoever ended it, nothing Zendesk sends into the conversation reaches the shopper until their next message is handed over, and it is not delivered afterwards either. Your AI agent only answers the shopper's messages, so in practice what is lost is what a human agent sends after the ending: replies still typed into the ticket, or a later follow-up on it. A survey app's message is delivered when you name the app in [section 4](#4-what-to-hand-to-bloomreach), unless the shopper's next hand-off already opened a new conversation (one conversation per live phase); one sent minutes after the ending may appear only once the shopper returns to the page's tab, reloads the page, or sends a message that is handed over to Zendesk again. From the next hand-off on, replies arrive again, in the same Clarity chat and, with one conversation per customer, the same Sunshine conversation. When the shopper ended the chat, the end notice message tells the agent so; an ending on the Zendesk side posts nothing into the conversation |
 | No conversation across devices through the weblayer (one conversation per customer) | The id is kept per browser, so a shopper on another device starts another conversation and the agent sees one thread per browser. Only a standalone integration passing the same id on every device links them; two such devices used at once then end each other's live session with every message routed to Zendesk |
 | One thread per live phase (one conversation per live phase) | Every hand-off after an ending opens another ticket, and the agent sees several threads per customer. Without an OAuth client allowed the ticket scopes ([3.3](#33-support-api-oauth-client--optional)), each ending by the shopper also leaves the previous ticket open |
-| Multi-Conversations required on the Sunshine app (one conversation per live phase) | Without it every message after the first ending fails for the shopper — see [3.6](#36-multi-conversations-on-the-sunshine-app) |
+| Multi-Conversations required on the Sunshine app (one conversation per live phase) | Without it every message routed to Zendesk after the customer's first conversation fails for the shopper — see [3.6](#36-multi-conversations-on-the-sunshine-app) |
 | The account settings of [3.5](#35-messaging-settings) gate the agent's ending | With *Agents can end messaging sessions* off, no ending ever reaches the shopper and the chat stays live until the shopper ends it; on *Pass control* the next integration does not answer the shopper. Neither is detectable before the first live chat |
 | No file upload in a Zendesk session | A shopper who needs to show a photo has to describe it instead |
 | Conversation metadata is shared | Sunshine caps a conversation's metadata at 4 KB for the whole object. If your own metadata keys leave too little room, the context summary is dropped for that hand-off |
@@ -482,7 +483,8 @@ failure, with its time zone.
 | The solve created a new ticket that nobody answers | The account is on *Pass control* | Switch Conversation control to *Release control* ([3.5](#35-messaging-settings)) |
 | A shopper gets an error on every message routed to Zendesk | The Sunshine app refuses a second conversation for that user: Multi-Conversations is off while the mode or your own channels need it | Check Multi-Conversations on the Sunshine app ([3.6](#36-multi-conversations-on-the-sunshine-app)) and enable it, or switch to one conversation per customer. If it is already on, ask Bloomreach: the refusal Zendesk returns is visible only in Bloomreach's logs |
 | The shopper's first message after a hand-off gets only the AI agent's welcome reply; repeating it works | The message reached the conversation before your AI agent took it over; Zendesk's conversation log marks it *Not processed* | Ask Bloomreach to raise the AI agent takeover wait ([section 4](#4-what-to-hand-to-bloomreach)) |
-| A form is answered but the dialogue does not escalate | The dialogue has no *Free text written* block after the form, or the field names collide with the reserved ones | Review the dialogue against [Forms](#forms-how-an-answer-reaches-the-ticket) |
+| A form is answered but the dialogue does not escalate | The dialogue has no *Free text written* block after the form | Review the dialogue against [Forms](#forms-how-an-answer-reaches-the-ticket) |
+| The dialogue reads no value for one form field | The field's name is reserved, so its answer is not written to the conversation metadata | Rename the field ([Forms](#forms-how-an-answer-reaches-the-ticket)) |
 | The requester is named `User <id>` or the *Update user* action writes nothing | The *Update user* action references session parameters that the widget's submission does not produce | Add a *Get conversation* action reading `<Metadata>` in front of it |
 | The requester has no email after a form | No Support API OAuth client is configured, the address already belongs to another Support user, or a standalone integration sends no customer id | Configure the client ([3.3](#33-support-api-oauth-client--optional)); for an address held by another user, the agent can merge the profiles by hand; for a standalone integration, set `getCurrentCustomerId` |
 | A message shows as delivered in Zendesk but the shopper saw nothing | An unsupported content type or button type | Use the types of [section 5](#5-supported-message-types) |
