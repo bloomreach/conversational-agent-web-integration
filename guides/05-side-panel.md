@@ -14,7 +14,8 @@ This guide is for developers who integrate the widget on a storefront. It's orga
 
 The side panel is for desktop only. The widget doesn't check the viewport size, so target the weblayer at desktop devices. The widget injects everything it needs into the page, so you don't need any host markup or container element. The only CSS your page needs is `body { margin: 0 }` ([2.1](#21-page-layout-checklist-required)).
 
-> **IMPORTANT** `widget.ui.desktopTemplate: 'ai_mode'` (described in this guide) is different from the AI mode widget template. `desktopTemplate` sets a layout for the default widget. `widgetTemplate: 'ai_mode'` loads a different widget bundle: the full-screen conversational search. Leave `widgetTemplate` unset when you follow this guide.
+> **IMPORTANT**
+> `widget.ui.desktopTemplate: 'ai_mode'` (described in this guide) is different from the AI mode widget template. `desktopTemplate` sets a layout for the default widget. `widgetTemplate: 'ai_mode'` loads a different widget bundle: the full-screen conversational search. Leave `widgetTemplate` unset when you follow this guide.
 
 ## Before you start
 
