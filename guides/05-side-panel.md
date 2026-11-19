@@ -548,4 +548,4 @@ The container must be in the DOM when the widget mounts. The widget looks up `PA
 
 ---
 
-[← Chapter 4 — Track events](04-track-events.md) · [Chapter 6 — Context-aware pricing →](06-context-aware-pricing.md)
+[← Chapter 4 — Track events](04-track-events.md) · [Chapter 6 — Set up context-aware pricing →](06-context-aware-pricing.md)
