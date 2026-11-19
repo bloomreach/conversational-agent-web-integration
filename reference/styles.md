@@ -10,7 +10,7 @@ CSS class hierarchies and CSS variables for the Clarity chat widget and its trig
 
 **Related docs:**
 - [`widget-config.md`](./widget-config.md) — `window.CLARITY_CONFIG` fields that the `--clarity-widget-*` CSS variables map to
-- [`weblayer-config.md`](./weblayer-config.md) — trigger template configuration; `--cui-param-*` / `--cui-sg-*` variables are set from these params
+- [`weblayer-config.md`](./weblayer-config.md) — trigger template configuration
 - [Customize components](../guides/03-customize-components.md) — component slot overrides (MiniPDP, ProductCard, ProductCarousel)
 - [Style the widget](../guides/02-style-the-widget.md) — annotated screenshots of the main classes, and how to write overrides that win over the widget's styles
 
@@ -301,7 +301,7 @@ Modifier: clarity-mini-pdp--inside
 ### clarity-message-wrapper
 
 * clarity-message-timestamp
-* clarity-state-change (live-agent connect/disconnect marker and the product-click marker)
+* clarity-state-change (external-agent connect/disconnect marker and the product-click marker)
 * clarity-message-container (modifiers: clarity-with-thumbs, clarity-always-show-thumbs)
   * clarity-message-carousel-divider-container
     * clarity-message-carousel-divider
@@ -466,8 +466,6 @@ _(no children)_
   * clarity-assistant-quick-reply-prompt-button
     * clarity-prompt-icon (intent: prompt) or clarity-end-conversation-icon (intent: end_conversation) (optional, based on intent)
     * clarity-assistant-quick-reply-button-text
-  * clarity-assistant-quick-reply-answer-button
-    * clarity-assistant-quick-reply-button-text
   * clarity-scroll-gradient-left / clarity-scroll-gradient-right (horizontal display only; fade overlay over the scroll edges, opacity driven by scroll position)
 
 ### clarity-agent-button-group
@@ -557,8 +555,8 @@ these ids/classes use their own `cocoaas-` prefix rather than `clarity-`.
 ```
 
 `#...-widget-wrapper` carries `.cocoaas-desktop-ai-mode-side-left` / `-side-right` (border modifier,
-only while open) — on the edge facing `#...-page-content`, i.e. the opposite of what the class name's
-own left/right would suggest if it were on the page-content box instead. Order of `#...-widget-wrapper`
+only while open), named after the edge of the wrapper that faces `#...-page-content`: `-side-left` when
+the panel is on the right, `-side-right` when it is on the left. Order of `#...-widget-wrapper`
 vs `#...-page-content` under the host depends on `desktopTemplateOptions.chatContainerPosition`.
 
 The resize handle and separator border live on the widget side rather than inside
@@ -580,9 +578,7 @@ Trigger templates use the `cui-` prefix. Each template is injected into the merc
     * cui-stars
     * cui-header
   * cui-buttons
-    * cui-button
-    * cui-button cui-anything
-    * cui-button cui-gradient-wrapper
+    * cui-button cui-gradient-wrapper (one per question; + cui-anything on the "ask anything" button)
       * cui-gradient-border
         * cui-gradient-content
           * cui-gradient-background
@@ -599,9 +595,7 @@ Trigger templates use the `cui-` prefix. Each template is injected into the merc
       * cui-banner-text
         * cui-gradient-text
     * cui-buttons
-      * cui-button
-      * cui-button cui-anything
-      * cui-button cui-gradient-wrapper
+      * cui-button cui-gradient-wrapper (one per question; + cui-anything on the "ask anything" button)
         * cui-gradient-border
           * cui-gradient-content
             * cui-gradient-background
@@ -660,7 +654,7 @@ Trigger templates use the `cui-` prefix. Each template is injected into the merc
   * cui-header-container
     * cui-content
       * cui-logo
-        * clarity-assistant-icon
+        * cui-assistant-icon
       * cui-header
     * cui-close-button
       * clarity-light-close-icon
@@ -668,9 +662,7 @@ Trigger templates use the `cui-` prefix. Each template is injected into the merc
     * cui-user-text-content
   * cui-text-content
   * cui-buttons
-    * cui-button
-    * cui-button cui-anything
-    * cui-button cui-gradient-wrapper
+    * cui-button cui-gradient-wrapper (one per question; + cui-anything on the "ask anything" button)
       * cui-gradient-border
         * cui-gradient-content
           * cui-gradient-background
@@ -740,12 +732,10 @@ Icon and utility classes used across multiple components.
 * clarity-expand-icon
 * clarity-feedback-icon
 * clarity-find-icon
-* clarity-followup-icon
 * clarity-help-icon
 * clarity-info-icon
 * clarity-link-icon
 * clarity-live-chat-icon
-* clarity-minimize-icon
 * clarity-pdp-link-icon
 * clarity-powered-by-br-icon
 * clarity-prompt-icon
@@ -759,7 +749,6 @@ Icon and utility classes used across multiple components.
 * clarity-thumb-down-icon
 * clarity-thumb-up-icon
 * clarity-voice-icon
-* clarity-fade-in
 * clarity-touch-enclosed-container (the chat's and the mini PDP's scroll containers)
 
 ### Trigger icons (`cui-*`)
@@ -794,13 +783,13 @@ Available throughout the widget. Two further global style blocks are described i
 
 ### Widget variables (`--clarity-widget-*`)
 
-Set as inline styles on `#cocoaas_chat_wrapper` from `getUIConfig()` values, so overriding one from a stylesheet needs `!important`. The UIConfig field names correspond to `window.CLARITY_CONFIG.ui.*` — see [`widget-config.md`](./widget-config.md) for the full config reference.
+Set as inline styles on `#cocoaas_chat_wrapper` from the `ui` configuration, so overriding one from a stylesheet needs `!important`. The field names correspond to `window.CLARITY_CONFIG.ui.*` — see [`widget-config.md`](./widget-config.md) for the full config reference.
 
-| Variable | Maps to UIConfig | Purpose |
+| Variable | Maps to `ui` field | Purpose |
 |---|---|---|
 | `--clarity-widget-font` | `font` | Font family for the whole widget |
 | `--clarity-widget-bg` | `background` | Widget background color |
-| `--clarity-widget-assistant-bg` | `assistantBackgroundColor` | Assistant message bubble background |
+| `--clarity-widget-assistant-bg` | `assistantBackgroundColor` | Assistant text message background |
 | `--clarity-widget-assistant-color` | `assistantFontColor` | Assistant message text color |
 | `--clarity-widget-user-bg` | `userBackgroundColor` | User message bubble background |
 | `--clarity-widget-user-color` | `userFontColor` | User message text color |
@@ -811,10 +800,10 @@ Set as inline styles on `#cocoaas_chat_wrapper` from `getUIConfig()` values, so 
 | `--clarity-widget-error-bg` | `errorBackgroundColor` | Error message background |
 | `--clarity-widget-error-color` | `errorFontColor` | Error message text color |
 | `--clarity-widget-z-index` | `zIndex` | Widget stacking order (default: 999999) |
-| `--clarity-widget-pos-top` | position top | Widget position from top |
-| `--clarity-widget-pos-bottom` | position bottom | Widget position from bottom |
-| `--clarity-widget-pos-left` | position left | Widget position from left |
-| `--clarity-widget-pos-right` | position right | Widget position from right |
+| `--clarity-widget-pos-top` | position top | Read by the open chat; in the default floating mode only `top` takes effect, the minimized badge takes [`position`](./widget-config.md#layout--positioning) directly |
+| `--clarity-widget-pos-bottom` | position bottom | See `--clarity-widget-pos-top` |
+| `--clarity-widget-pos-left` | position left | See `--clarity-widget-pos-top` |
+| `--clarity-widget-pos-right` | position right | See `--clarity-widget-pos-top` |
 | `--clarity-widget-product-image-ratio` | `productImageRatio` | Aspect ratio for product images |
 | `--clarity-widget-product-image-fit` | `productImageContained` | Object-fit for product images: `contain` when set, otherwise `cover` |
 | `--clarity-widget-banner-image-margin` | `templateOptions.bannerImage` | Margin-left on the banner image: `1.5em` when a banner image is set, otherwise empty |
@@ -822,31 +811,31 @@ Set as inline styles on `#cocoaas_chat_wrapper` from `getUIConfig()` values, so 
 
 ### Trigger variables (`--cui-param-*`)
 
-Set on each trigger template's root element. These are populated from `window.CLARITY_WEBLAYER_CONFIG` params — see [`weblayer-config.md`](./weblayer-config.md) for the source config fields.
+The trigger templates read these variables, each with a built-in default. Set them in CSS: in your stylesheet, or in the weblayer's [`style`](./weblayer-config.md#identity--tracking) field.
 
 Trigger abbreviations: **PDP** = PDP Embedded, **PLP-E** = PLP Embedded, **PLP-B** = PLP Banner, **Int** = Interaction Embedded, **Chat** = Embedded Chat
 
-| Variable | Default | Purpose | Used by |
+| Variable | Built-in default | Purpose | Used by |
 |---|---|---|---|
 | `--cui-param-fontFamily` | `Inter, Arial, Helvetica, sans-serif` | Font family | PDP, PLP-E, PLP-B, Int, Chat |
 | `--cui-param-backgroundColor` | `#ffffff` | Container background | PLP-E, PLP-B |
-| `--cui-param-textColor` | `#003160` | General text color | PDP, PLP-E, Int, Chat |
-| `--cui-param-headerTextColor` | `#181818` | Header / title text color | PDP, PLP-E, PLP-B, Int, Chat |
-| `--cui-param-askAnythingTextColor` | `#002840` | "Ask anything" placeholder text color | PDP, PLP-E, Int |
+| `--cui-param-textColor` | `#003160`; Chat `#002840` | General text color | PDP, PLP-E, Int, Chat |
+| `--cui-param-headerTextColor` | PLP-E, PLP-B `#181818`; PDP, Int, Chat `#1c1733` | Header / title text color | PDP, PLP-E, PLP-B, Int, Chat |
+| `--cui-param-askAnythingTextColor` | PDP, PLP-E `#0ec0fd`; Int `#002840` | "Ask anything" button text color | PDP, PLP-E, Int |
 | `--cui-param-userTextColor` | `#e1e9fa` | User text bubble background | Int, Chat |
-| `--cui-param-bannerBackgroundColor` | `#181818` | Banner section background | PLP-E, PLP-B |
-| `--cui-param-bannerTextColor` | `#3d506d` | Banner section text color | PLP-E, PLP-B |
+| `--cui-param-bannerBackgroundColor` | PLP-E `#181818`; PLP-B `#f7f9fc` | Banner section background | PLP-E, PLP-B |
+| `--cui-param-bannerTextColor` | PLP-E `#fff`; PLP-B `#3d506d` | Banner section text color | PLP-E, PLP-B |
 | `--cui-param-buttonTextColor` | `#ffffff` | Button label text color | PLP-B |
-| `--cui-param-buttonBackgroundColor` | `#4b8eaf` | Button fill color | PLP-B, Int, Chat |
-| `--cui-param-buttonHoveredBackgroundColor` | `rgba(14,192,253,0.04)` | Button fill on hover | PDP, Int, Chat |
-| `--cui-param-buttonBorderColor` | `rgba(75,142,175,1)` | Button border / gradient color | PLP-B, Chat |
-| `--cui-param-buttonBorderGradientColor` | — | Secondary gradient stop for button border | PDP, PLP-E, Int, Chat |
-| `--cui-param-gradientTextColor` | — | Gradient text fill color | PLP-E, PLP-B |
-| `--cui-param-buttonBorderRadius` | `20px` | Button corner radius | PDP, PLP-B, Int, Chat |
-| `--cui-param-buttonBorderWidth` | `1px` | Inner border thickness on gradient buttons | PDP, PLP-B, Int, Chat |
-| `--cui-param-buttonBorderShadowWidth` | `3px` | Outer shadow padding on gradient buttons | PDP, Int, Chat |
-| `--cui-param-buttonBorderShadowOpacity` | `0` | Shadow opacity at rest | PDP, Int, Chat |
-| `--cui-param-buttonBorderShadowHoveredOpacity` | `0.2` | Shadow opacity on hover | PDP, PLP-E, Int, Chat |
+| `--cui-param-buttonBackgroundColor` | PLP-B `#4b8eaf`; Int, Chat a gradient | Button fill color | PLP-B, Int, Chat |
+| `--cui-param-buttonHoveredBackgroundColor` | PDP `rgba(14,192,253,0.04)`; Int, Chat a gradient | Button fill on hover | PDP, Int, Chat |
+| `--cui-param-buttonBorderColor` | PLP-B `rgba(75,142,175,1)`; Chat `#0fc2ff` | Button border / gradient color | PLP-B, Chat |
+| `--cui-param-buttonBorderGradientColor` | a gradient, per template | Secondary gradient stop for button border | PDP, PLP-E, Int, Chat |
+| `--cui-param-gradientTextColor` | a gradient, per template | Gradient text fill color | PLP-E, PLP-B |
+| `--cui-param-buttonBorderRadius` | PDP `64px`; PLP-B `20px`; Int, Chat `8px` | Button corner radius | PDP, PLP-B, Int, Chat |
+| `--cui-param-buttonBorderWidth` | `1px`; PLP-B `2px` | Inner border thickness on gradient buttons | PDP, PLP-B, Int, Chat |
+| `--cui-param-buttonBorderShadowWidth` | PDP `3px`; Int, Chat `4px` | Outer shadow padding on gradient buttons | PDP, Int, Chat |
+| `--cui-param-buttonBorderShadowOpacity` | PDP `0.2`; Int, Chat `0` | Shadow opacity at rest | PDP, Int, Chat |
+| `--cui-param-buttonBorderShadowHoveredOpacity` | PDP, PLP-E `0.5`; Int, Chat `0.2` | Shadow opacity on hover | PDP, PLP-E, Int, Chat |
 
 ### Quiz trigger variables (`--cui-sg-*`)
 

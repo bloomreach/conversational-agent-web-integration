@@ -32,6 +32,10 @@ weblayer is possible and described in [Getting Started](guides/README.md#standal
 | Route search-bar queries to the agent | [guides/07-search-orchestration.md](guides/07-search-orchestration.md) | [reference/clarity-utils.md](reference/clarity-utils.md) |
 | Zendesk hand-over | [guides/08-customer-service-zendesk.md](guides/08-customer-service-zendesk.md) | |
 
+[examples/](examples/README.md) shows the calls and their order for custom components, add to cart, the side panel
+and search orchestration. Adapt it to the site rather than pasting it, and resolve every `Note:` comment in the
+code you take from it.
+
 ## Rules that keep an integration working
 
 - **Use only what is documented.** Configuration fields, hooks, events, CSS classes and CSS variables listed in
@@ -57,8 +61,8 @@ weblayer is possible and described in [Getting Started](guides/README.md#standal
 
 ## How to verify an integration
 
-1. Load a page with the widget and open the chat with the badge; `Clarity:chatOpen` fires (an open by a trigger comes as `Clarity:widgetShown` with `chat_widget_state: 'open'`).
+1. Load a page with the widget and open the chat with the badge; `Clarity:chatOpen` fires (a trigger that opens a still-hidden widget comes as `Clarity:widgetShown` with `chat_widget_state: 'open'`).
 2. Send a message; `Clarity:userRespond` then `Clarity:clarityRespond` fire with the params documented in `reference/hooks.md`.
-3. For a component override: open a carousel, click the card, add to cart; confirm `Clarity:urlClick` / `Clarity:addToCart` fire and the mini-PDP opens through `props.onOpenMiniPDP`.
+3. For a component override: open a carousel, click the card, add to cart; confirm `Clarity:miniPdpClick` (`Clarity:urlClick` when `ui.enableMiniPDP` is off) and `Clarity:addToCart` fire, and with `ui.enableMiniPDP` on that the mini-PDP opens through `props.onProductClick`.
 4. For styling: confirm the override targets a class listed in `reference/styles.md` and that its rule wins in the browser's developer tools. Inside the widget the selector starts with `#cocoaas_chat_wrapper`; the menus, the PDF viewer, the triggers (including their `clarity-trigger-*` classes) and the side panel are outside it (see `guides/02-style-the-widget.md`).
-5. Check the browser console for warnings prefixed `Clarity:`.
+5. Check the browser console for warnings and errors.

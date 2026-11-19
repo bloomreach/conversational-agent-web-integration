@@ -41,16 +41,16 @@ Prices that are not in the list never reach the agent. The agent gets the listed
 
 | Shopper | `priceAttributesToUse` | What the agent sees on a product |
 |---|---|---|
-| Member | `[{ attributeName: 'member_price', primary: true }, { attributeName: 'price' }]` | `member_price: $80`, `price: $100` |
-| Logged in, not a member | `[{ attributeName: 'non_member_price', primary: true }, { attributeName: 'price' }]` | `non_member_price: $90`, `price: $100` |
-| Not logged in | `[{ attributeName: 'price' }]` | `price: $100` |
+| Member | `[{ attributeName: 'member_price', primary: true }, { attributeName: 'price' }]` | `member_price: $80.00`, `price: $100.00` |
+| Logged in, not a member | `[{ attributeName: 'non_member_price', primary: true }, { attributeName: 'price' }]` | `non_member_price: $90.00`, `price: $100.00` |
+| Not logged in | `[{ attributeName: 'price' }]` | `price: $100.00` |
 
 **Regional prices**: the catalog has `ca_price` and `wa_price` and **no `price`**.
 
 | Shopper | `priceAttributesToUse` | What the agent sees on a product |
 |---|---|---|
-| California | `[{ attributeName: 'ca_price' }]` | `ca_price: $95` |
-| Washington | `[{ attributeName: 'wa_price' }]` | `wa_price: $99` |
+| California | `[{ attributeName: 'ca_price' }]` | `ca_price: $95.00` |
+| Washington | `[{ attributeName: 'wa_price' }]` | `wa_price: $99.00` |
 
 In the regional case every fallback to `price` shows no price at all; see [Edge cases](#edge-cases).
 
@@ -58,8 +58,11 @@ In the regional case every fallback to `price` shows no price at all; see [Edge 
 
 ## Return the shopper's prices from the page
 
+On a weblayer page, `getContext()` is the weblayer's [`widget.getContext`](../reference/weblayer-config.md#widget--clarity-widget-settings): ask your Bloomreach contact to have it return the two fields below. A top-level `window.CLARITY_CONFIG.getContext`, as in this sample, is read only on a [standalone integration](./README.md#standalone-integration-without-a-weblayer).
+
 ```js
 window.CLARITY_CONFIG = {
+  ...(window.CLARITY_CONFIG ?? {}),
   // ...
   getContext: () => {
     const shopper = myShop.currentShopper()
@@ -75,6 +78,7 @@ window.CLARITY_CONFIG = {
     }
     if (shopper.isLoggedIn) {
       return {
+        // ...the other context fields
         priceAttributesToUse: [
           { attributeName: 'non_member_price', primary: true },
           { attributeName: 'price' },
@@ -82,7 +86,10 @@ window.CLARITY_CONFIG = {
         userPricingContext: { membership: 'none' },
       }
     }
-    return { priceAttributesToUse: [{ attributeName: 'price' }] }
+    return {
+      // ...the other context fields
+      priceAttributesToUse: [{ attributeName: 'price' }],
+    }
   },
 }
 ```

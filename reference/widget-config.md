@@ -39,7 +39,7 @@ Both widget templates read it: the **default widget** and **AI Mode**, selected 
 
 These functions are called before each user message to provide context to the AI backend.
 
-If `bannerSettings[source]` defines these functions, they take priority over the top-level ones. When using the weblayer, these are typically set via [`widget.getContext`](./weblayer-config.md#widget--clarity-widget-settings) or the individual `PARAM_itemIdsInCart` / `PARAM_itemIdsToShow` shorthands.
+If `bannerSettings[source]` defines these functions, they take priority over the top-level ones. When using the weblayer, these are typically set via [`widget.getContext`](./weblayer-config.md#widget--clarity-widget-settings) or built from the weblayer's `productIds` and `widget.PARAM_itemIdsInCart`.
 
 ### `getContext(): ContextFields`
 
@@ -176,7 +176,7 @@ All colors accept any valid CSS color value.
 | `userFontColor` | `'black'` | Font color of user messages. |
 | `userBackgroundColor` | `'#e1e9fa'` | Background of user message bubbles. |
 | `assistantFontColor` | `'#001f31'` | Font color of Clarity text messages. |
-| `assistantBackgroundColor` | `'white'` | Background of Clarity text messages. |
+| `assistantBackgroundColor` | `'transparent'` | Background of Clarity text messages. |
 | `errorFontColor` | `'#001f31'` | Font color of error messages. |
 | `errorBackgroundColor` | `'#feecf0'` | Background of error messages. |
 
@@ -184,7 +184,7 @@ All colors accept any valid CSS color value.
 
 | Field | Default | Description |
 |---|---|---|
-| `position` | `{ right: '20px', bottom: '0px' }` | CSS position of the widget: `{ left?, right?, top?, bottom? }`. When `left` is set, `right` is ignored and vice versa. |
+| `position` | `{ right: '20px', bottom: '0px' }` | Position of the minimized badge: `{ left?, right?, top?, bottom? }`. With `left` set, the default `right` is not applied. The open chat docks to the right edge, at the bottom unless `top` is set. |
 | `size` | `'small'` | Starting size when first opened: `'small'` or `'large'`. |
 | `smallSizeWidth` | `'470px'` | Widget width in small size. Not applied on mobile. |
 | `largeSizeWidth` | `'760px'` | Widget width in large size. Not applied on mobile. |
@@ -192,7 +192,7 @@ All colors accept any valid CSS color value.
 | `font` | `'Inter, Arial, Helvetica, sans-serif'` | Font family for all widget text. |
 | `messagesAtTop` | `false` | If `true`, new messages appear from the top rather than the bottom. |
 | `verticalPrompts` | desktop `true`, mobile `false` | If `true`, prompt/suggestion buttons stack vertically. Unset, the prompts in the chat flow stack on desktop and run horizontally on mobile; the fixed bottom bar runs horizontally unless this is `true`. |
-| `legalNotice` | — | Adds a legal notice string to the widget footer. See also `ui.translation.legalNotice`. |
+| `legalNotice` | — | Replaces the legal notice text in the widget footer. See also `ui.translation.legalNotice`. |
 | `timeFormatHour12` | `false` | Use 12-hour format for message timestamps. |
 
 ### Display Toggles
@@ -201,10 +201,10 @@ All colors accept any valid CSS color value.
 |---|---|
 | `hideBRPowered` | Hide the "Powered by Bloomreach" footer text. |
 | `hidePdpLink` | Hide text links and product cards that point to the current PDP URL (as determined by `getContext().pdpUrl`). |
-| `hideSelectedMessage` | Hide the thumbnail carousel shown after "show similar products" responses. |
+| `hideSelectedMessage` | Hide the product thumbnails the assistant shows with an answer about specific products (a product question, similar products). |
 | `hideSuggestions` | Hide the AI-generated question buttons of a single product (after a thumbnail response or "Ask follow up"; where they are shown is described under `showQRInChat`). Does not affect the Compare / Show more prompts — see `hideCompareButton` and `hideViewMoreIfLessThan`. |
 | `hideAIProductQuestions` | Hide the AI-generated question buttons of a single product: the ones shown for a thumbnail response (one product returned) and the ones shown after the shopper picks "Ask follow up" on a product card. |
-| `hideTopMenu` | Hide the hamburger menu icon in the widget header. |
+| `hideTopMenu` | Hide the menu (⋯) icon in the widget header. |
 | `hideExpansion` | Hide the expand/collapse size button in the header. |
 | `customizedWidgetSize` | When `true`, forces the widget to `width: 100%` regardless of `smallSizeWidth`/`largeSizeWidth`, hides the resize handle, and hides the expand/collapse button. Use when the widget is embedded in a container that controls its own dimensions. |
 | `hideInputButtons` | Hide the send and voice input buttons inside the chat input bar. |
@@ -227,15 +227,15 @@ All colors accept any valid CSS color value.
 | Field | Default | Description |
 |---|---|---|
 | `sessionExpiryHours` | `720` (30 days) | Hours of inactivity (no user message) before the session is cleared. `0` or less disables expiry. |
-| `hideBubbleResetInterval` | `24` | Minimum hours between showing the same initial message bubble. |
-| `aiProductQuestionsLimit` | `3` | **Both templates.** Maximum number of AI-generated question buttons shown per response. In AI Mode, caps the question buttons in the mini PDP (`ProductQuickView`). |
-| `enableAgentName` | — | Show the agent's name alongside the assistant label in messages. |
+| `hideBubbleResetInterval` | `24` | Hours the initial message bubble stays hidden after the shopper closes it. |
+| `aiProductQuestionsLimit` | `3` | **Both templates.** Maximum number of AI-generated question buttons shown per response. In AI Mode, caps the question buttons in the quick view. |
+| `enableAgentName` | — | Show the agent's name in brackets after the assistant name in the header. |
 | `showQRInChat` | — | Show Quick Reply buttons inline in the chat flow (older behavior). Also moves the AI-generated questions of a thumbnail response (one product returned) into the chat flow, after the Show more / Compare prompts; as in the fixed bottom bar, they replace that response's Quick Replies. The questions shown after "Ask follow up" on a product card stay in the fixed bottom bar either way. |
-| `showContextStateChange` | — | Show a "Page context updated" banner in the chat flow (same style as the live-agent connect banner) whenever the page context sent to the agent changes its `currentItemIds`/`currentItemId`. The very first context never triggers the banner — only a change relative to a prior one does. When off (default), no banner is shown. |
-| `showPDPEnterQuestions` | — | When enabled, the widget announces the PDP it lands on: on init, on chat open and on an SPA route change (`history.pushState`/`replaceState`/`popstate`), if `getContext().currentItemId` differs from the last context sent to the backend, it sends the updated context and announces the product view, and the agent replies with that product's questions as quick replies (rendered with the same "Now viewing product {product_title}" banner as a click). After a route change the widget waits up to 3 s for `getContext().currentItemId` to change, so a `getContext` that reads the product off the DOM has time to see the new page. Only for a chat that already exists in the database, so a shopper who never engaged does not get a chat created; skipped when the chat is opened by a trigger that sends a message at the same time, and when the in-widget click that navigated there already announced the product. Only one announce runs at a time; a trigger that arrives while one is in flight (init and `open_chat` on the same page) is ignored. Covers the desktop open button and `CLARITY.call('open_chat')`; opening the mobile sheet by swipe or drag does not trigger it. |
+| `showContextStateChange` | — | Show a "Page context updated" banner in the chat flow (same style as the external-agent connect banner) whenever the page context sent to the agent changes its `currentItemIds`/`currentItemId`. The very first context never triggers the banner — only a change relative to a prior one does. When off (default), no banner is shown. |
+| `showPDPEnterQuestions` | — | When enabled, the widget announces the PDP it lands on while the chat is open: on init, on chat open and on an SPA route change (`history.pushState`/`replaceState`/`popstate`), if `getContext().currentItemId` differs from the last context sent to the backend, it sends the updated context and announces the product view, and the agent replies with that product's questions as quick replies (rendered with the same "Now viewing product {product_title}" banner as a click). After a route change the widget waits up to 3 s for `getContext().currentItemId` to change, so a `getContext` that reads the product off the DOM has time to see the new page. Only for a chat that already exists in the database, so a shopper who never engaged does not get a chat created; skipped when the chat is opened by a trigger that sends a message at the same time, and when the in-widget click that navigated there already announced the product. Only one announce runs at a time; a trigger that arrives while one is in flight (init and `open_chat` on the same page) is ignored. Covers the widget's open button and `CLARITY.call('open_chat')`; opening the `mobile_pdp` sheet by swipe or drag does not trigger it. |
 | `showCompareButtonInChat` | — | When enabled, renders the "Compare" prompt inline in the chat flow instead of in the fixed bottom bar — appended to the trailing Quick Reply message when one is shown, or as a standalone prompt right after the last response otherwise. Independent of `showQRInChat`. Shown only when the last response contains a multi-item carousel; see `hideCompareButton` to suppress it everywhere. |
 | `hideCompareButton` | — | When enabled, suppresses the "Compare" prompt button entirely, in both the chat flow and the fixed bottom bar. |
-| `showViewMoreInChat` | — | When enabled, renders the "Show more" prompt inline in the chat flow (alongside the Compare button, using the same placement rule) instead of in the fixed bottom bar. Independent of `showQRInChat`. Shown under the same conditions as the fixed-bottom variant: the most recent assistant response includes a carousel and either the response carries a SHOW_MORE action or `alwaysShowViewMore` is set. |
+| `showViewMoreInChat` | — | When enabled, renders the "Show more" prompt inline in the chat flow (alongside the Compare button, using the same placement rule) instead of in the fixed bottom bar. Independent of `showQRInChat`. Shown under the same conditions as the fixed-bottom variant: the most recent assistant response includes a carousel and either the response offers more results or `alwaysShowViewMore` is set. |
 | `enableMiniPDP` | — | Enable the mini product detail panel when a product card is clicked. |
 | `enableSendingMessageWhileStreaming` | — | Keep the composer enabled while an answer streams. A plain text message sent then is shown at once and interrupts the answer in progress: the agent stops that turn and answers the newest message, with the earlier ones in the history. An upload or a message to an external agent is not sent while an answer streams; the composer keeps it until the turn ends. |
 | `openPdpInNewTab` | desktop `true`, mobile `false` | Open product links in a new browser tab. Defaults to `true` on desktop, `false` on mobile. For links in a response (text links, product cards, the mini PDP and AI Mode's quick view), [`fn.getLinkOptions`](#function-overrides) can override it per link. |
@@ -243,18 +243,18 @@ All colors accept any valid CSS color value.
 | `voiceInputTimeout` | `1000` | Milliseconds of silence before speech recognition stops recording. |
 | `enableSuggestionQuestions` | — | Use `initialMessage.placeholderStrings` as rotating suggestion questions; shows 3 random ones after each non-product response. |
 | `alwaysShowViewMore` | — | When the most recent assistant response is a carousel, always render the "Show more" prompt button — regardless of whether the carousel's action would normally qualify for it. |
-| `hideViewMoreIfLessThan` | — | Minimum carousel item count required to render the "Show more" prompt button **and** the [`fn.seeAllResults`](../guides/03-customize-components.md#fnseeallresults) "See all results" button. When set, hides both buttons if the carousel has fewer items than this number. For "Show more": takes priority over `alwaysShowViewMore` and any SHOW_MORE action carried by the response. |
+| `hideViewMoreIfLessThan` | — | Minimum carousel item count required to render the "Show more" prompt button **and** the [`fn.seeAllResults`](../guides/03-customize-components.md#fnseeallresults) "See all results" button. When set, hides both buttons if the carousel has fewer items than this number. For "Show more": takes priority over `alwaysShowViewMore` and over a response that offers more results. |
 | `supportPriceRange` | — | Read prices from item variants and display a price range (e.g. "$10–$30") in carousel items. Ignored on a card that shows a variant selector (`enableProductCardVariantSelection`): it shows the selected variant's price, as with this flag off. |
 | `showDiscountPercentage` | — | When an item's original price is higher than its (single) price, show a discount badge (e.g. "(-40%)") next to the price in product cards and the mini PDP. No badge is shown for price ranges. With context-aware pricing (`getContext().priceAttributesToUse`) the mini PDP shows no badge while it shows the configured prices, and a product card none while it shows two of them as a range. |
-| `enableLiveChat` | — | Add a live chat option to the header dropdown menu (feature in testing). |
+| `enableLiveChat` | — | Add a live chat option to the header dropdown menu. |
 | `liveChatContainer` | — | CSS selector of the host-page element to render the live chat video into. The widget injects its own `<video>`/`<canvas>` into that element (and removes them when the session ends), so an empty container is enough. Use `'window'` to open the video in a popup window instead. When unset, the video renders next to the chat panel, or inside it when the viewport is too narrow for both, or in a popup window when the widget is mounted in a parent element, with `fullMode`, or in the desktop side panel. |
 | `priceDecimalPlaces` | `2` | **Both templates.** Number of decimal places for price strings in product cards. |
 | `productLinkQueryParams` | — | Query parameters to append to all product links — product cards, the mini PDP and AI Mode's quick view (no leading `&` or `?`; use `&` between params). For links inside assistant text messages, only those matching `pdpLinkRegex` get them. |
 | `pdpLinkRegex` | — | Pattern identifying product-page links inside assistant **text** messages — a plain pattern with no delimiters or flags, matched case-insensitively (e.g. `/p/[^/]+$`). Only a matching link gets `productLinkQueryParams` appended; every other link opens without them. When unset (or when the pattern is not valid regex), no text link is treated as a product link, so none of them get the params. `openPdpInNewTab` applies to every text link either way. Does not affect product cards or the mini PDP (AI Mode's quick view included), which always get the params, nor — in the default widget — `.pdf` links, which open in the in-chat PDF viewer. |
-| `useAddToCart` | — | Show an "Add to cart" button on product cards in horizontal carousels. Clicking it invokes [`ui.fn.addToCart`](../guides/03-customize-components.md#fnaddtocart) and logs the `addToCart` hook (action `add_to_cart`), not `urlClick`. The built-in button is a no-op unless `fn.addToCart` is also set. Plain product-card clicks and the "Go to product page" dropdown always log `urlClick` with `link_type: 'product_card'` / `'product_card_menu'`, regardless of this flag. |
+| `useAddToCart` | — | Show an "Add to cart" button on product cards. Clicking it invokes [`ui.fn.addToCart`](../guides/03-customize-components.md#fnaddtocart) and logs the `addToCart` hook (action `add_to_cart`), not `urlClick`. The button is shown only when `fn.addToCart` is also set. A plain product-card click (`urlClick` with `link_type: 'product_card'`, or `miniPdpClick` with `enableMiniPDP`) and the "Go to product page" menu item (`urlClick` with `'product_card_menu'`) are logged regardless of this flag. |
 | `enableCheckOut` | — | Show a PayPal-branded checkout button in the mini PDP (below the variant options/questions) instead of the "Add to cart" button. The button shows the fixed PayPal wordmark plus a localized "Buy Now" label, and clicking it opens the built-in PayPal checkout flow (`clarity-paypal-widget`) for the selected variant. The PayPal credentials are configured on your agent by Bloomreach: hand your Bloomreach contact the PayPal app's client id and secret, whether it is a sandbox or a live app, and the storefront domains that may start a checkout (the client token is bound to them). Takes precedence over the mini-PDP add-to-cart button when enabled, unless [`ui.fn.showCheckoutButton`](../guides/03-customize-components.md#fnshowcheckoutbutton) returns `false`. |
 | `paypalProductIdPrefix` | — | Prefix every PayPal checkout `item_id` must carry. Any item id that does not already start with it gets it prepended before the mini-PDP Buy now button hands it to PayPal. |
-| `mobileMiniPDPOverlay` | — | When the mini PDP opens in `INSIDE` mode on mobile, display it as a fixed overlay panel (slides up from 30% of the screen) instead of replacing the chat view. Includes a drag handle to dismiss. |
+| `mobileMiniPDPOverlay` | — | When the mini PDP opens inside the chat panel on mobile, display it as a fixed overlay panel (slides up from 30% of the screen) instead of replacing the chat view. Includes a drag handle to dismiss. |
 | `showBackdrop` | — | Show a semi-transparent backdrop behind the widget when it is open. Clicking the backdrop closes the widget. Always active when using the `mobile_pdp` template. |
 
 ### Template System
@@ -263,7 +263,7 @@ All colors accept any valid CSS color value.
 |---|---|---|
 | `template` | `'base'` | Widget layout template. Valid values: `'base'`, `'mobile_pdp'`. `'mobile_pdp'` falls back to `'base'` on desktop. |
 | `templateOptions` | — | Additional options for the `mobile_pdp` template. See below. |
-| `clearPageText` | — | Text shown on the large QR/share page. **Formerly nested under `templateOptions`** — a config still setting it there keeps working (falls back automatically), but new configs should set it at this top level. |
+| `clearPageText` | — | Title of the home screen (see `initialMessage.showPlaceholderStringsHome`). Defaults to the translated text. **Formerly nested under `templateOptions`** — a config still setting it there keeps working (falls back automatically), but new configs should set it at this top level. |
 | `desktopTemplate` | — | Set to `'ai_mode'` to mount the widget as a fixed-width side panel that pushes the page's content over, instead of floating `position: fixed`. Set it at `ui.desktopTemplate` or `ui.desktop.desktopTemplate`. See [Desktop AI-Mode Side Panel](#desktop-ai-mode-side-panel) below. |
 | `desktopTemplateOptions` | — | Options for `desktopTemplate: 'ai_mode'`. See [Desktop AI-Mode Side Panel](#desktop-ai-mode-side-panel) below. |
 
@@ -348,7 +348,7 @@ Takes priority over top-level `ui.productList` etc. for the matching device type
 
 ### Component Overrides
 
-Custom mount functions for replacing built-in components. See [Customize components](../guides/03-customize-components.md) for the full mount function signature, props, and framework examples (Vanilla JS, React, Vue, Angular).
+Custom mount functions for replacing built-in components. See [Customize components](../guides/03-customize-components.md) for the full mount function signature and props; the framework examples (plain JS, React, Vue, Angular) are in [`examples/custom-components/`](../examples/custom-components/README.md).
 
 ```typescript
 ui.component: {
@@ -414,7 +414,7 @@ Provides localized strings for all static text in the widget.
 
 ### `ui.stateText`
 
-Text for ephemeral, non-message chat "state" banners (rendered like the live-agent connect/disconnect marker — see `clarity-state-change` in [`styles.md`](./styles.md)).
+Text for ephemeral, non-message chat "state" banners (rendered like the external-agent connect/disconnect marker — see `clarity-state-change` in [`styles.md`](./styles.md)).
 
 ```typescript
 ui.stateText?: {
@@ -422,7 +422,7 @@ ui.stateText?: {
 }
 ```
 
-`userActionProductClick` is shown when a shopper clicks into a product and [`fn.goToProductPage`](../guides/03-customize-components.md#function-overrides) is configured. `{product_title}` is replaced with the clicked product's title. Supports the same `mobile`/`desktop`/`bannerSettings[source].ui` override layers as the rest of `ui`.
+`userActionProductClick` is shown when a shopper clicks into a product with [`fn.goToProductPage`](../guides/03-customize-components.md#fngotoproductpage) configured, and for a [`showPDPEnterQuestions`](#feature-flags) product view. `{product_title}` is replaced with the clicked product's title. Supports the same `mobile`/`desktop`/`bannerSettings[source].ui` override layers as the rest of `ui`.
 
 ### `ui.sierraRatingTimeoutLabel`
 
@@ -469,7 +469,7 @@ agentConfig?: {
 |---|---|
 | `errorFontColor` | Font color for error messages from an external customer-service agent. Default `'#001f31'`; independent of `ui.errorFontColor`. |
 | `errorBackgroundColor` | Background for agent-level error messages. Default `'#ffd1dc'`; independent of `ui.errorBackgroundColor`. |
-| `getAgentVariables` | Function called before each AI request to inject custom variables into the agent state. Return value is merged with agent-specific defaults. |
+| `getAgentVariables` | Function called with each shopper message while an external agent is enabled. The returned object is sent to the external agent as its variables, in place of the defaults. |
 
 ---
 
@@ -493,10 +493,10 @@ feedback?: {
 
 | Field | Default | Description |
 |---|---|---|
-| `enabled` | — | Enable per-message thumbs up/down feedback buttons for the last Clarity response. |
+| `enabled` | — | Enable per-message thumbs up/down feedback buttons on Clarity's text responses. |
 | `menuItemEnabled` | — | Add a "Give feedback" item to the header dropdown menu. |
 | `onMinimizeEnabled` | — | Also trigger the survey check when the user minimizes the widget, in addition to on close. |
-| `surveyEnabled` | — | Automatically show a survey when the widget is closed or minimized (if `onMinimizeEnabled`). |
+| `surveyEnabled` | — | Automatically show a survey when the shopper dismisses the widget (the ✕ on the minimized badge); with `onMinimizeEnabled`, also when they minimize the chat. |
 | `userMessagesNumberRequired` | `2` | Minimum number of user messages required in the session for the survey to appear. |
 | `intervalTime` | `48` | Maximum hours between the user's last message and the widget closing for the survey to appear. |
 | `surveyShowInterval` | `168` | Minimum hours between two automatic survey appearances (tracked in localStorage). |
@@ -505,7 +505,7 @@ feedback?: {
 
 **`menuItemEnabled`** — Adds a "Give feedback" item to the header menu. Clicking it always shows the survey immediately, with no conditions.
 
-**`surveyEnabled`** — Automatically shows the survey when the widget is closed (or minimized, if `onMinimizeEnabled` is set). All three of the following must be true:
+**`surveyEnabled`** — Automatically shows the survey when the shopper dismisses the widget with the ✕ on the minimized badge (or minimizes the chat, if `onMinimizeEnabled` is set). All three of the following must be true:
 
 1. The user has sent at least `userMessagesNumberRequired` messages in the current session (default: 2).
 2. The time between the widget closing and the user's last message is less than `intervalTime` hours (default: 48). This prevents showing the survey for stale sessions.
@@ -542,17 +542,17 @@ initialMessage?: {
 | `itemIdsToShow` | Item IDs for a product carousel shown alongside the initial message. |
 | `quickReply.text` | Hint text shown above the quick reply buttons. |
 | `quickReply.data` | Array of quick reply buttons: `label` (display text), `target` (direct action), `payload` (extra data). |
-| `placeholderStrings` | Strings that rotate in the input placeholder every 3 seconds. Also used by `enableSuggestionQuestions`. |
+| `placeholderStrings` | Strings typed one after another into the input placeholder until the shopper's first message. With `showPlaceholderStringsHome` they are the home screen's buttons instead; with `enableSuggestionQuestions`, the suggestion questions. |
 | `mobileSuggestions` | Buttons shown in the minimized state of the `mobile_pdp` template. |
 | `showPlaceholderStringsHome` | Show the home screen (placeholder UI) when there are no messages. |
-| `userMessage` | **DEPRECATED.** Sends a user message immediately when the widget loads. Use `getContext` instead. |
+| `userMessage` | **DEPRECATED.** Sends a user message immediately when the widget loads. |
 | `context` | **DEPRECATED.** Use `getContext()` instead. |
 
 ---
 
 ## `hooks` — Event Hooks
 
-Callbacks the widget calls when something happens in the chat. `version` must be `'WBL_BUNDLE'`; every callback receives one params object. With the weblayer, see [Hooks on a weblayer page](./hooks.md#hooks-on-a-weblayer-page). Every hook and its params are documented in [`hooks.md`](./hooks.md).
+Callbacks the widget calls when something happens in the chat. `version` must be `'WBL_BUNDLE'`; callbacks receive one params object (`processingMessage` a boolean). With the weblayer, see [Hooks on a weblayer page](./hooks.md#hooks-on-a-weblayer-page). Every hook and its params are documented in [`hooks.md`](./hooks.md).
 
 ---
 
@@ -586,6 +586,7 @@ const getStoredClarityShopperId = () => {
 }
 
 window.CLARITY_CONFIG = {
+  ...(window.CLARITY_CONFIG ?? {}), // keeps what other code of the page has already set
   url: undefined, // auto-detected from script src
   projectId: '00000000-0000-0000-0000-000000000000', // your Engagement project id
   personaId: '00000000-0000-0000-0000-000000000000', // your agent id
@@ -602,6 +603,7 @@ window.CLARITY_CONFIG = {
     currentItemId: getProductId(),
   }),
   ui: {
+    ...window.CLARITY_CONFIG?.ui,
     background: '#FFFFFF',
     position: { left: '20px', bottom: '20px' },
     enableMiniPDP: true,
@@ -610,12 +612,11 @@ window.CLARITY_CONFIG = {
   initialMessage: {
     text: 'Hi! How can I help you today?',
     placeholderStrings: ['Find me a red dress', "What's on sale?"],
-    showPlaceholderStringsHome: true,
   },
   feedback: {
     enabled: true,
     surveyEnabled: true,
   },
-  hooks: { version: 'WBL_BUNDLE' }, // required for the Clarity:* browser events
+  hooks: { ...window.CLARITY_CONFIG?.hooks, version: 'WBL_BUNDLE' }, // required for the Clarity:* browser events
 }
 ```

@@ -20,7 +20,6 @@ conversation:
 | | Version 1 | Version 2 |
 |---|---|---|
 | Where the query is classified | In the browser (on-page classification) | Bloomreach's classifier service |
-| Helper Tag in Engagement | Helper Tag | Helper Tag version 2 |
 | `@bloomreach/clarity-utils` npm tag | `latest` | `next` |
 | Classification time, once the library has loaded | No network call | Up to 500 ms, overlapped with the keyword search when that is started in parallel ([below](#your-search-handler)) |
 
@@ -33,7 +32,7 @@ The routing happens in two steps, at two levels:
 | Level | Where | Decides | Who implements it |
 |---|---|---|---|
 | **1. Query classification** | On your page, before results load | Keyword search or conversation | Your search handler calls `isSearch()` from [`@bloomreach/clarity-utils`](../reference/clarity-utils.md), directly or through the Helper Tag |
-| **2. Agent selection** | In the Conversational Agent's backend, on every message | Whether the Conversational Agent or your customer-service agent answers | Nothing to implement; configured on your agent by Bloomreach |
+| **2. Agent selection** | In the Conversational Agent's backend, on each typed message or quick reply | Whether the Conversational Agent or your customer-service agent answers | Nothing to implement; configured on your agent by Bloomreach |
 
 Level 1 keeps keyword search fast: version 1 decides locally, version 2 gives up on the classifier service after
 500 ms and runs the keyword search. Level 2 is a language-model step that looks at the message and the
@@ -51,9 +50,9 @@ Your Bloomreach contact deploys four pieces in your Engagement project:
    chat widget, tester and traffic gating). Every other Conversational Agent tag and weblayer depends on it.
 2. **Helper Tag** — defines `window.CLARITY_HELPER`, the functions your search handler calls (below). It loads
    the classifier library from the CDN. Its audience in Engagement is also the on/off switch for the feature:
-   restricted to testers before go-live, removed to roll back without a release on your side. Version 1 and
-   version 2 each have their own Helper Tag; only one of them runs on a page. The version 2 Helper Tag is set up
-   with the address of the classifier service and sends your agent id from the Global Tag with each query.
+   restricted to testers before go-live, removed to roll back without a release on your side. One Helper Tag
+   serves both versions: its settings select version 1 or version 2, and for version 2 it is set up with the
+   address of the classifier service and sends your agent id from the Global Tag with each query.
 3. **Orchestrator Tag** — once the Global Tag is present, shows the orchestrator weblayer.
 4. **Orchestrator WebLayer** — a weblayer with no trigger that loads the chat widget hidden, so that it can be
    opened instantly when a conversational query comes in. It is a dedicated weblayer so that conversations
@@ -66,33 +65,14 @@ Everything is configured in Engagement; nothing of this ships in your codebase.
 | Function | What it does |
 |---|---|
 | `isSearch(input, config?)` → `Promise<boolean>` | `true` when the query is a keyword search, `false` when it should go to the agent. Always resolves: when the classifier library is not available within 1.5 s (not loaded yet, or failed to load), it resolves `true`, so the query runs as a keyword search. It also resolves `true`, without classifying, when the chat cannot be opened: the page's locale has no orchestrator weblayer, or no Conversational Agent weblayer has started on the page yet. Resolves `true` for empty input, without tracking. Tracks a `search_orchestrator` event with `search_string` and `is_conversational`, which feeds the Ask Me Anything dashboard; when one of the cases above made it answer keyword search, the event also carries `fallback` (`library_unavailable`: the library failed to load; `timeout`: it was still loading after 1.5 s; or `chat_unavailable`). **Version 1:** `config` is passed to the classifier; on a non-English page pass `{ locale }` with one of the [supported codes](../reference/clarity-utils.md#clarityutilsconfig) (for example `{ locale: 'fr-ca' }`); any other value, bare or regional (`de`, `de-at`), uses the English word lists. **Version 2:** the query goes to the classifier service; when the service answers with an error or not within 500 ms, it resolves `true`, tracked as a keyword search without `fallback`. `locale` is not needed |
-| `onFocus()` | Version 2 only. Call it when the search input gets focus: it opens the connection to the classifier service ahead of the query, so the classification that follows does not wait for a new connection. Calls closer than 5 seconds apart do nothing |
-| `invokeSearchHubOrch(input, triggerComponent = 'search')` | Opens the chat widget and sends `input` as the shopper's message: selects the orchestrator weblayer for the current locale, shows and opens the widget, sends the message. Does nothing when the page's locale has no orchestrator weblayer, or no Conversational Agent weblayer has started on the page yet; `isSearch` resolves `true` in both cases, so a query it routes to the agent always opens the chat. Called after that but before the widget bundle has loaded, it is queued and runs once the bundle is ready |
+| `onFocus()` | Call it when the search input gets focus. With version 2 it opens the connection to the classifier service ahead of the query, so the classification that follows does not wait for a new connection. Calls closer than 5 seconds apart do nothing, and so does every call with version 1 |
+| `invokeSearchHubOrch(input, triggerComponent = 'search')` | Opens the chat widget and sends `input` as the shopper's message: selects the orchestrator weblayer for the current locale, shows and opens the widget, sends the message. Does nothing when the page's locale has no orchestrator weblayer, or no Conversational Agent weblayer has started on the page yet; `isSearch` resolves `true` in both cases, so a query it routes to the agent always opens the chat. Called after that but before the widget bundle has loaded, it is queued and runs once the bundle is ready. `triggerComponent` labels the opening in analytics (`chat_opened_from_trigger_component`) |
 
 ### Your search handler
 
 Add one branch where your page handles a submitted search, and call `onFocus()` when the search input gets
-focus. The same code works with both versions, so switching versions needs no change on your side.
-
-```js
-searchInput.addEventListener('focus', () => window.CLARITY_HELPER?.onFocus?.())
-
-const onSearchSubmit = async (query) => {
-  // Helper Tag not on the page: run your search as before
-  if (!window.CLARITY_HELPER) return runSiteSearch(query)
-
-  // both start now and run at the same time
-  const searchRequest = fetchSearchResults(query)
-  // locale: see isSearch above
-  const isKeywordSearch = await window.CLARITY_HELPER.isSearch(query, { locale: 'en-us' })
-
-  if (isKeywordSearch) {
-    renderSearchResults(await searchRequest) // already there, or as soon as the search returns
-  } else {
-    window.CLARITY_HELPER.invokeSearchHubOrch(query)
-  }
-}
-```
+focus, as [`with-helper-tag.js`](../examples/search-orchestration/plain-js/with-helper-tag.js) does. The same code works with both
+versions, so switching versions needs no change on your side.
 
 `fetchSearchResults` and `renderSearchResults` are your search request and your results view. Starting the
 request together with `isSearch` means a keyword search does not wait for the classification first and the
@@ -109,48 +89,24 @@ search second. If your results page runs its own search when it loads, call `run
 
 If you prefer not to call the injected `window.CLARITY_HELPER`, the classifier is published as an npm package
 and you can call it yourself. The npm tag and the `setup()` argument select the version; the rest of the code
-is the same for both.
+is the same for both. [`with-npm-package.js`](../examples/search-orchestration/plain-js/with-npm-package.js) is the search handler on this path.
 
 ```bash
 npm install --save-exact @bloomreach/clarity-utils@latest   # version 2: @next
 ```
 
-```js
-import { clarityUtils } from '@bloomreach/clarity-utils'
-
-// version 1: { mode: 'score', locale: 'en-us' }, locale as for CLARITY_HELPER.isSearch above
-// version 2: { mode: 'api', classifierUrl, agentId }, values from your Bloomreach contact
-clarityUtils.setup({ mode: 'score', locale: 'en-us' })
-searchInput.addEventListener('focus', () => clarityUtils.warmUp?.())
-
-const onSearchSubmit = async (query) => {
-  // window.CLARITY: the chat widget is on the page
-  if (!window.CLARITY) return runSiteSearch(query)
-
-  // both start now and run at the same time
-  const searchRequest = fetchSearchResults(query)
-  const isKeywordSearch = await clarityUtils.isSearch(query)
-
-  if (isKeywordSearch) {
-    renderSearchResults(await searchRequest)
-  } else {
-    openChatWithQuery(query) // see "Opening the chat" below
-  }
-}
-```
-
 `isSearch` returns a `Promise` on `next` and a `boolean` on `latest`, and `warmUp()` exists only on `next`; the
-`await` and the `?.()` make the code work with either tag. The full API, modes and options are in the [`@bloomreach/clarity-utils`
+example's `await` and `?.()` make it work with either tag. The full API, modes and options are in the [`@bloomreach/clarity-utils`
 reference](../reference/clarity-utils.md). On this path you also take care of:
 
-- **Opening the chat.** `openChatWithQuery` is yours: with the Helper Tag on the page, call
-  `window.CLARITY_HELPER.invokeSearchHubOrch(query)`; without it, use the [runtime API](../reference/runtime-api.md):
-  `call('show_badge', {}, source)`, `call('open_chat', {}, source)` and
-  `call('user_send_message', { input: query, type: 'text', force: true }, source)` with the orchestrator weblayer's
-  id as `source`.
+- **Opening the chat.** Use the [runtime API](../reference/runtime-api.md): `call('show_badge', opening, source)`,
+  `call('open_chat', opening, source)` and
+  `call('user_send_message', { input: query, type: 'text', force: true, ...opening }, source)`, with
+  `opening = { triggerComponent: 'search' }`, which labels the opening in analytics, and the orchestrator
+  weblayer's id as `source`.
 - **Analytics.** The Helper Tag tracks the `search_orchestrator` event; when you call the library directly,
   track it yourself through the Engagement SDK (`track('clarity', { action: 'search_orchestrator',
-  search_string, is_conversational })`) if you want the routing in the dashboard.
+  search_string, is_conversational })`): the Ask Me Anything dashboard is built on it.
 - **Updates.** Install from the npm tag of your version, `latest` or `next`, as above, and run the install
   command again to pick up a new release.
 

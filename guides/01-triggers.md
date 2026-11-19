@@ -141,7 +141,7 @@ same conversation.
 
 `triggerTemplate: 'embedded_chat'`. A compact chat inline on the page: a message area capped at
 `PARAM_maxChatContainerHeight`, an input (`PARAM_inputPlaceholder`) and suggested questions (generated or
-static, same parameters as the PDP template; long button texts wrap according to `PARAM_textLengthToDivide`).
+static, same parameters as the PDP template; on mobile, long button texts wrap according to `PARAM_textLengthToDivide`).
 Renders into `PARAM_parentElement`.
 
 The shopper converses in the panel; messages and answers are shown inline and the floating widget stays
@@ -169,6 +169,8 @@ is the weblayer's `data.banner_id`.
 Click on a suggestion: opens the chat with that suggestion as the first message. The list clears unless
 `PARAM_keepSuggestionsAfterClick` is set, and the previous conversation is reset unless
 `PARAM_keepChatHistoryOnSuggestionClick` is set.
+
+The weblayer still needs `PARAM_parentElement` on the page; the suggestions themselves render into the `container` you pass.
 
 ### Quiz embedded
 

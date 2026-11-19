@@ -28,7 +28,7 @@ the shopper sends a message
 |---|---|---|
 | **Browser event** `Clarity:<hook>` on `window` | Your page code | Nothing on a weblayer page. A standalone page sets [`hooks: { version: 'WBL_BUNDLE' }`](../reference/hooks.md#the-hooks-object) |
 | **Callback** in `hooks` | Your page code | [`hooks`](../reference/hooks.md#hooks-on-a-weblayer-page) in `window.CLARITY_CONFIG` or the weblayer's widget settings |
-| **Engagement event** `clarity`, one `action` per hook | Reports, segments and scenarios in Engagement | Nothing: the weblayer tracks it. A standalone page tracks nothing |
+| **Engagement event** `clarity`, told apart by its `action` | Reports, segments and scenarios in Engagement | Nothing: the weblayer tracks it. A standalone page tracks nothing |
 
 The triggers (floating button, embedded questions, search suggestions) report the same way, through **trigger
 hooks**: browser events named `ClarityTrigger:<hook>`, and Engagement events with the trigger actions. They exist
@@ -90,7 +90,7 @@ Each event links to its params in [`hooks.md`](../reference/hooks.md).
 | [`Clarity:initialMessage`](../reference/hooks.md#initialmessage) | The initial assistant message has loaded | |
 | [`Clarity:searchedProducts`](../reference/hooks.md#searchedproducts) | Search results are handed to your page by [`fn.hideSearchResultCarousels`](03-customize-components.md#fnhidesearchresultcarousels) | Render the results on your page |
 
-`userRespond` and `clarityRespond` also fire one `userRespondProduct` / `clarityRespondProduct` per product and one
+In the default widget, `userRespond` and `clarityRespond` also fire one `userRespondProduct` / `clarityRespondProduct` per product and one
 `clarityRespondButton` per suggested button, for per-product and per-button reports.
 
 ### Products and the cart
@@ -136,9 +136,9 @@ On a weblayer page each tracked hook becomes an Engagement event named `clarity`
 | Action | Browser event it comes from |
 |---|---|
 | [`show`](../reference/analytics-events.md#show) | `Clarity:widgetShown`, `Clarity:surveyShow` and `ClarityTrigger:show`; [`component`](../reference/analytics-events.md#default-attributes) tells them apart |
-| [`chat_open`](../reference/analytics-events.md#chat_open) | `Clarity:chatOpen` |
-| [`chat_closed`](../reference/analytics-events.md#chat_closed) | `Clarity:chatClosed` |
-| [`close`](../reference/analytics-events.md#close) | `Clarity:badgeHidden` |
+| The open's own action, such as `expand_from_minimized`, or else [`chat_open`](../reference/analytics-events.md#chat_open) | `Clarity:chatOpen` |
+| `minimize_from_open`, or else [`chat_closed`](../reference/analytics-events.md#chat_closed) | `Clarity:chatClosed` |
+| The close's own action, such as `close_chat_from_minimized`, or else [`close`](../reference/analytics-events.md#close) | `Clarity:badgeHidden` |
 | [`close_bubble`](../reference/analytics-events.md#close_bubble) | `Clarity:initialMessageBubbleHidden` |
 | [`change_size`](../reference/analytics-events.md#change_size) | `Clarity:changeSize` |
 | [`user_respond`](../reference/analytics-events.md#user_respond) | `Clarity:userRespond` |
@@ -183,7 +183,7 @@ neither is part of the contract.
 1. Open the browser console on a page with the widget and listen to an event, for example
    `window.addEventListener('Clarity:chatOpen', (e) => console.log(e.detail))`, then open the chat with the badge.
 2. On a weblayer page, the same interaction shows up in Engagement as a `clarity` event with
-   `action: 'chat_open'`.
+   `action: 'expand_from_minimized'`.
 3. On a standalone page with missing or incomplete events, check that `hooks.version` is `'WBL_BUNDLE'`.
 
 ---

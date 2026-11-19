@@ -18,30 +18,33 @@ Every tracked event — widget and trigger alike — carries these attributes in
 
 ## Clarity Actions
 
-Optional fields are marked with `?`. `agent_id` / `conversation_state` / `chat_widget_size` / `chat_config` recur across most actions. Every action that carries `conversation_state` also carries `chatId` (the same value as the default attribute `chat_id`).
+Optional fields are marked with `?`. `agent_id` / `conversation_state` / `chat_widget_size` / `chat_config` recur across most actions. Every action that carries `conversation_state` also carries `chatId` (the same value as the default attribute `chat_id`), except a `clarity_error` caught in the widget itself. `chat_widget_size` is present only while the chat is open.
+
+Mobile AI Mode events carry `agent_id` and the action's own fields only: no `conversation_state`, `chat_widget_size`, `chat_config`, `chatId` or `user_respond_source`, and no `*_product` / `*_button` events.
 
 ### `chat_open`
+
+Tracked under the `action` the open came with: `'expand_from_minimized'` (the badge), `'expand_from_bubble'` (the message bubble) or `'expand_from_trigger'` (a trigger). `'chat_open'` only when it came with none.
 
 | Field | Type / Values | Hook |
 |---|---|---|
 | `agent_id` | `string` — Persona ID | `chatOpen` |
 | `conversation_state` | `'conversation'` \| `'idle'` \| `'initial_message'` \| `'welcome_message'` \| `'home_screen'` \| `'none'` | `chatOpen` |
-| `chat_widget_size` | `'large'` \| `'small'` \| `'full_screen'` \| `'half_screen'` | `chatOpen` |
 | `chat_config` | `object` — config snapshot (sensitive keys excluded) | `chatOpen` |
-| `action?` | `string` — e.g. `'expand_from_trigger'` | `chatOpen` |
 | `button_text?` | `string` | `chatOpen` |
 | `chat_opened_from_trigger?` | `string` — trigger banner name | `chatOpen` |
 | `chat_opened_from_trigger_component?` | `string` — trigger component | `chatOpen` |
 
 ### `chat_closed`
 
+Tracked as `action: 'minimize_from_open'` when the shopper minimizes the chat with the header button; `'chat_closed'` otherwise.
+
 | Field | Type / Values | Hook |
 |---|---|---|
 | `agent_id` | `string` | `chatClosed` |
 | `conversation_state` | `string` (see `chat_open`) | `chatClosed` |
-| `chat_widget_size` | `string` (see `chat_open`) | `chatClosed` |
+| `chat_widget_size` | `'large'` \| `'small'` \| `'full_screen'` \| `'half_screen'` | `chatClosed` |
 | `chat_config` | `object` | `chatClosed` |
-| `action?` | `'minimize_from_open'` | `chatClosed` |
 
 ### `show`
 
@@ -52,7 +55,7 @@ Fed by `widgetShown` (widget becomes visible) and `surveyShow` (feedback survey 
 | `agent_id` | `string` | `widgetShown`, `surveyShow` |
 | `conversation_state` | `string` (see `chat_open`) | `widgetShown` |
 | `chat_widget_state` | `'open'` \| `'bubble'` \| `'minimized'` | `widgetShown` |
-| `chat_widget_size` | `string` (see `chat_open`) | `widgetShown` |
+| `chat_widget_size` | `string` (see `chat_closed`) | `widgetShown` |
 | `chat_config` | `object` | `widgetShown` |
 | `component` | `'chat'` (widget) \| `'ai_mode'` (AI Mode) \| `'feedback_survey'` (survey) | `widgetShown`, `surveyShow` |
 | `component_template` | `'chat_v1'` \| `'ai_mode_v1'` \| `'feedback_survey_v1'` | `widgetShown`, `surveyShow` |
@@ -66,13 +69,14 @@ Fed by `widgetShown` (widget becomes visible) and `surveyShow` (feedback survey 
 
 ### `close`
 
+Tracked under the `action` the close came with: `'close_chat_from_minimized'` (the ✕ on the badge), `'close_chat_from_open_on_mobile'`, `'close_chat_from_trigger'` (`hide_badge` with `log`), or `'minimize_from_open'` (the header button with `ui.skipMinimize`). `'close'` only when it came with none.
+
 | Field | Type / Values | Hook |
 |---|---|---|
 | `agent_id` | `string` | `badgeHidden` |
 | `conversation_state` | `string` (see `chat_open`) | `badgeHidden` |
-| `chat_widget_size` | `string` (see `chat_open`) | `badgeHidden` |
+| `chat_widget_size?` | `string` (see `chat_closed`) | `badgeHidden` |
 | `chat_config` | `object` | `badgeHidden` |
-| `action?` | `'close_chat_from_trigger'` \| `'close_chat_from_minimized'` \| `'close_chat_from_open_on_mobile'` \| `'minimize_from_open'` (close button with `ui.skipMinimize`) | `badgeHidden` |
 
 ### `close_bubble`
 
@@ -80,7 +84,6 @@ Fed by `widgetShown` (widget becomes visible) and `surveyShow` (feedback survey 
 |---|---|---|
 | `agent_id` | `string` | `initialMessageBubbleHidden` |
 | `conversation_state` | `string` (see `chat_open`) | `initialMessageBubbleHidden` |
-| `chat_widget_size` | `string` (see `chat_open`) | `initialMessageBubbleHidden` |
 | `chat_config` | `object` | `initialMessageBubbleHidden` |
 
 ### `user_respond`
@@ -89,7 +92,7 @@ Fed by `widgetShown` (widget becomes visible) and `surveyShow` (feedback survey 
 |---|---|---|
 | `agent_id` | `string` | `userRespond` |
 | `conversation_state` | `string` (see `chat_open`) | `userRespond` |
-| `chat_widget_size` | `string` (see `chat_open`) | `userRespond` |
+| `chat_widget_size` | `string` (see `chat_closed`) | `userRespond` |
 | `chat_config` | `object` | `userRespond` |
 | `type` | `'text'` \| `'quick_reply'` \| `'suggestion_button'` \| `'trigger_button'` \| `'agent_button'` \| `'agent_form'` \| `'product_card_menu'` | `userRespond` |
 | `button_text?` | `string` | `userRespond` |
@@ -106,7 +109,7 @@ Sub-event fired once per product alongside `user_respond`.
 |---|---|---|
 | `agent_id` | `string` | `userRespondProduct` |
 | `conversation_state` | `string` (see `chat_open`) | `userRespondProduct` |
-| `chat_widget_size` | `string` (see `chat_open`) | `userRespondProduct` |
+| `chat_widget_size` | `string` (see `chat_closed`) | `userRespondProduct` |
 | `chat_config` | `object` | `userRespondProduct` |
 | `type` | `string` (see `user_respond`) | `userRespondProduct` |
 | `button_text?` | `string` | `userRespondProduct` |
@@ -123,7 +126,7 @@ Sub-event fired once per product alongside `user_respond`.
 | `agent_id` | `string` | `clarityRespond` |
 | `conversation_state` | `string` (see `chat_open`) | `clarityRespond` |
 | `chat_widget_state` | `'open'` \| `'bubble'` \| `'minimized'` | `clarityRespond` |
-| `chat_widget_size` | `string` (see `chat_open`) | `clarityRespond` |
+| `chat_widget_size` | `string` (see `chat_closed`) | `clarityRespond` |
 | `chat_config` | `object` | `clarityRespond` |
 | `type` | `'text'` \| `'carousel'` \| `'text_with_carousel'` | `clarityRespond` |
 | `message?` | `string` | `clarityRespond` |
@@ -154,7 +157,7 @@ Sub-event fired once per product alongside `clarity_respond`.
 | `agent_id` | `string` | `clarityRespondProduct` |
 | `conversation_state` | `string` (see `chat_open`) | `clarityRespondProduct` |
 | `chat_widget_state` | `string` (see `clarity_respond`) | `clarityRespondProduct` |
-| `chat_widget_size` | `string` (see `chat_open`) | `clarityRespondProduct` |
+| `chat_widget_size` | `string` (see `chat_closed`) | `clarityRespondProduct` |
 | `chat_config` | `object` | `clarityRespondProduct` |
 | `type` | `string` (see `clarity_respond`) | `clarityRespondProduct` |
 | `message?` | `string` | `clarityRespondProduct` |
@@ -185,7 +188,7 @@ Sub-event fired once per suggested button alongside `clarity_respond`.
 | `agent_id` | `string` | `clarityRespondButton` |
 | `conversation_state` | `string` (see `chat_open`) | `clarityRespondButton` |
 | `chat_widget_state` | `string` (see `clarity_respond`) | `clarityRespondButton` |
-| `chat_widget_size` | `string` (see `chat_open`) | `clarityRespondButton` |
+| `chat_widget_size` | `string` (see `chat_closed`) | `clarityRespondButton` |
 | `chat_config` | `object` | `clarityRespondButton` |
 | `type` | `string` (see `clarity_respond`) | `clarityRespondButton` |
 | `message?` | `string` | `clarityRespondButton` |
@@ -210,7 +213,7 @@ Sub-event fired once per suggested button alongside `clarity_respond`.
 | `agent_id` | `string` | `externalAgentRespond` |
 | `conversation_state` | `string` (see `chat_open`) | `externalAgentRespond` |
 | `chat_widget_state` | `string` (see `clarity_respond`) | `externalAgentRespond` |
-| `chat_widget_size` | `string` (see `chat_open`) | `externalAgentRespond` |
+| `chat_widget_size` | `string` (see `chat_closed`) | `externalAgentRespond` |
 | `chat_config` | `object` | `externalAgentRespond` |
 | `agent_type` | `'customer service'` | `externalAgentRespond` |
 | `agent_name` | `string` | `externalAgentRespond` |
@@ -234,7 +237,7 @@ clock and can skew; `received_at` is the server's own value.
 | `agent_id` | `string` | `externalAgentRespondFailed` |
 | `conversation_state` | `string` (see `chat_open`) | `externalAgentRespondFailed` |
 | `chat_widget_state` | `string` (see `clarity_respond`) | `externalAgentRespondFailed` |
-| `chat_widget_size` | `string` (see `chat_open`) | `externalAgentRespondFailed` |
+| `chat_widget_size` | `string` (see `chat_closed`) | `externalAgentRespondFailed` |
 | `chat_config` | `object` | `externalAgentRespondFailed` |
 | `agent_type` | `'customer service'` | `externalAgentRespondFailed` |
 | `agent_name` | `string` (see `external_agent_respond`) | `externalAgentRespondFailed` |
@@ -248,7 +251,7 @@ clock and can skew; `received_at` is the server's own value.
 |---|---|---|
 | `agent_id` | `string` | `urlClick` |
 | `conversation_state` | `string` (see `chat_open`) | `urlClick` |
-| `chat_widget_size` | `string` (see `chat_open`) | `urlClick` |
+| `chat_widget_size` | `string` (see `chat_closed`) | `urlClick` |
 | `chat_config` | `object` | `urlClick` |
 | `link_type` | `'product_card'` \| `'mini_pdp_product'` \| `'text_url'` \| `'product_card_menu'` \| `'srp_link'` | `urlClick` |
 | `product_id?` | `string` | `urlClick` |
@@ -266,7 +269,7 @@ Fired on every add-to-cart click that reaches the handler (disabled buttons neve
 |---|---|---|
 | `agent_id` | `string` | `addToCart` |
 | `conversation_state` | `string` (see `chat_open`) | `addToCart` |
-| `chat_widget_size` | `string` (see `chat_open`) | `addToCart` |
+| `chat_widget_size` | `string` (see `chat_closed`) | `addToCart` |
 | `chat_config` | `object` | `addToCart` |
 | `product_id` | `string` | `addToCart` |
 | `product_category?` | `string` — merchant-configured category attribute | `addToCart` |
@@ -280,7 +283,7 @@ Fired when the shopper starts a PayPal checkout with the mini PDP's Buy now butt
 |---|---|---|
 | `agent_id` | `string` | `checkout` |
 | `conversation_state` | `string` (see `chat_open`) | `checkout` |
-| `chat_widget_size` | `string` (see `chat_open`) | `checkout` |
+| `chat_widget_size` | `string` (see `chat_closed`) | `checkout` |
 | `chat_config` | `object` | `checkout` |
 | `product_ids` | `string[]` — item ids before `ui.paypalProductIdPrefix` | `checkout` |
 | `checkout_location` | `'quick_view'` (mini PDP) | `checkout` |
@@ -295,7 +298,7 @@ Each `checkout` event is followed by at most one of these, when that checkout se
 |---|---|---|
 | `agent_id` | `string` | `purchase`, `checkoutCancel`, `checkoutError` |
 | `conversation_state` | `string` (see `chat_open`) | `purchase`, `checkoutCancel`, `checkoutError` |
-| `chat_widget_size` | `string` (see `chat_open`) | `purchase`, `checkoutCancel`, `checkoutError` |
+| `chat_widget_size` | `string` (see `chat_closed`) | `purchase`, `checkoutCancel`, `checkoutError` |
 | `chat_config` | `object` | `purchase`, `checkoutCancel`, `checkoutError` |
 | `product_ids` | `string[]` | `purchase`, `checkoutCancel`, `checkoutError` |
 | `checkout_location` | `'quick_view'` | `purchase`, `checkoutCancel`, `checkoutError` |
@@ -311,7 +314,7 @@ Each `checkout` event is followed by at most one of these, when that checkout se
 |---|---|---|
 | `agent_id` | `string` | `miniPdpClick` |
 | `conversation_state` | `string` (see `chat_open`) | `miniPdpClick` |
-| `chat_widget_size` | `string` (see `chat_open`) | `miniPdpClick` |
+| `chat_widget_size` | `string` (see `chat_closed`) | `miniPdpClick` |
 | `chat_config` | `object` | `miniPdpClick` |
 | `product_id` | `string` | `miniPdpClick` |
 | `product_category?` | `string` — merchant-configured category attribute, taken from the parent product | `miniPdpClick` |
@@ -323,7 +326,7 @@ Each `checkout` event is followed by at most one of these, when that checkout se
 |---|---|---|
 | `agent_id` | `string` | `closeMiniPdp` |
 | `conversation_state` | `string` (see `chat_open`) | `closeMiniPdp` |
-| `chat_widget_size` | `string` (see `chat_open`) | `closeMiniPdp` |
+| `chat_widget_size` | `string` (see `chat_closed`) | `closeMiniPdp` |
 | `chat_config` | `object` | `closeMiniPdp` |
 | `product_id?` | `string` | `closeMiniPdp` |
 | `url?` | `string` | `closeMiniPdp` |
@@ -334,7 +337,7 @@ Each `checkout` event is followed by at most one of these, when that checkout se
 |---|---|---|
 | `agent_id` | `string` | `selectProduct` |
 | `conversation_state` | `string` (see `chat_open`) | `selectProduct` |
-| `chat_widget_size` | `string` (see `chat_open`) | `selectProduct` |
+| `chat_widget_size` | `string` (see `chat_closed`) | `selectProduct` |
 | `chat_config` | `object` | `selectProduct` |
 | `current_selection` | `string[]` — all selected product IDs after the action | `selectProduct` |
 | `product_id?` | `string` — single select | `selectProduct` |
@@ -348,7 +351,7 @@ Each `checkout` event is followed by at most one of these, when that checkout se
 |---|---|---|
 | `agent_id` | `string` | `deselectProduct` |
 | `conversation_state` | `string` (see `chat_open`) | `deselectProduct` |
-| `chat_widget_size` | `string` (see `chat_open`) | `deselectProduct` |
+| `chat_widget_size` | `string` (see `chat_closed`) | `deselectProduct` |
 | `chat_config` | `object` | `deselectProduct` |
 | `product_id?` | `string` — single deselect | `deselectProduct` |
 | `current_selection?` | `string[]` — single deselect | `deselectProduct` |
@@ -365,7 +368,7 @@ Fired the moment the user clicks an action in a product menu, alongside the down
 | `agent_id` | `string` | `productMenuClick` |
 | `conversation_state` | `string` (see `chat_open`) | `productMenuClick` |
 | `chat_widget_state` | `string` (see `clarity_respond`) | `productMenuClick` |
-| `chat_widget_size` | `string` (see `chat_open`) | `productMenuClick` |
+| `chat_widget_size` | `string` (see `chat_closed`) | `productMenuClick` |
 | `chat_config` | `object` | `productMenuClick` |
 | `button_content` | `'ask follow up'` \| `'find similar'` \| `'go to product page'` | `productMenuClick` |
 | `source_type` | `'product_card'` \| `'carousel'` \| `'quick_view'` | `productMenuClick` |
@@ -378,7 +381,7 @@ Fired the moment the user clicks an action in a product menu, alongside the down
 |---|---|---|
 | `agent_id` | `string` | `buttonClick` |
 | `conversation_state` | `string` (see `chat_open`) | `buttonClick` |
-| `chat_widget_size` | `string` (see `chat_open`) | `buttonClick` |
+| `chat_widget_size` | `string` (see `chat_closed`) | `buttonClick` |
 | `chat_config` | `object` | `buttonClick` |
 | `button_content` | `'Clear Chat'` \| `'Get Help'` \| `'Learn More'` \| `'Give Feedback'` \| `'End Conversation'` | `buttonClick` |
 | `url?` | `string` | `buttonClick` |
@@ -389,7 +392,7 @@ Fired the moment the user clicks an action in a product menu, alongside the down
 |---|---|---|
 | `agent_id` | `string` | `changeSize` |
 | `conversation_state` | `string` (see `chat_open`) | `changeSize` |
-| `chat_widget_size` | `string` (see `chat_open`) | `changeSize` |
+| `chat_widget_size` | `string` (see `chat_closed`) | `changeSize` |
 | `chat_config` | `object` | `changeSize` |
 | `set_size_to` | `'small'` \| `'large'` | `changeSize` |
 
@@ -399,7 +402,7 @@ Fired the moment the user clicks an action in a product menu, alongside the down
 |---|---|---|
 | `agent_id` | `string` | `thumbsUp` / `thumbsDown` |
 | `conversation_state` | `string` (see `chat_open`) | `thumbsUp` / `thumbsDown` |
-| `chat_widget_size` | `string` (see `chat_open`) | `thumbsUp` / `thumbsDown` |
+| `chat_widget_size` | `string` (see `chat_closed`) | `thumbsUp` / `thumbsDown` |
 | `chat_config` | `object` | `thumbsUp` / `thumbsDown` |
 | `feedback_target_text?` | `string` — reacted message text (joined by `\n\n`) | `thumbsUp` / `thumbsDown` |
 | `feedback_target_product_ids?` | `string[]` — product IDs from carousels | `thumbsUp` / `thumbsDown` |
@@ -426,7 +429,7 @@ Fired the moment the user clicks an action in a product menu, alongside the down
 | `agent_id` | `string` | `clarityWarning` |
 | `conversation_state` | `string` (see `chat_open`) | `clarityWarning` |
 | `chat_widget_state` | `string` (see `clarity_respond`) | `clarityWarning` |
-| `chat_widget_size` | `string` (see `chat_open`) | `clarityWarning` |
+| `chat_widget_size` | `string` (see `chat_closed`) | `clarityWarning` |
 | `chat_config` | `object` | `clarityWarning` |
 | `location` | `'Back-end'` \| `'Front-end'` (injecting events failed) \| an `'FE:…'` origin (transient network error) | `clarityWarning` |
 | `type` | `string` | `clarityWarning` |
@@ -438,13 +441,13 @@ Fired the moment the user clicks an action in a product menu, alongside the down
 | Field | Type / Values | Hook |
 |---|---|---|
 | `agent_id` | `string` | `clarityError` |
-| `conversation_state` | `string` (see `chat_open`); empty string for an `'FE:…'` error | `clarityError` |
-| `location` | `'Back-end'` \| `'FE:user_active'` \| `'FE:user_passive'` \| `'FE:chat_closed'` \| `'FE:app_error_boundary'` \| `'FE:error'` | `clarityError` |
+| `conversation_state` | `string` (see `chat_open`); can be an empty string for an `'FE:…'` error | `clarityError` |
+| `location` | `'Back-end'` \| `'FE:user_active'` \| `'FE:user_passive'` \| `'FE:chat_closed'` \| `'FE:app_error_boundary'` | `clarityError` |
 | `type` | `string` | `clarityError` |
 | `message` | `string` — truncated to 2000 chars | `clarityError` |
 | `agent_name?` | `string` (see `external_agent_respond`) — only when receiving that external agent's replies failed | `clarityError` |
 | `chat_widget_state?` | `string` (see `clarity_respond`) — `'Back-end'` only | `clarityError` |
-| `chat_widget_size?` | `string` (see `chat_open`) — `'Back-end'` only | `clarityError` |
+| `chat_widget_size?` | `string` (see `chat_closed`) — `'Back-end'` only | `clarityError` |
 | `chat_config?` | `object` — `'Back-end'` only | `clarityError` |
 | `latency?` | `number` — ms, `'Back-end'` only | `clarityError` |
 
@@ -498,7 +501,7 @@ v2.0 only.
 | `chat_config` | `object` — config snapshot | `clicked` |
 | `conversation_state?` | `string` (see `chat_open`) | `clicked` |
 | `chat_widget_state?` | `'open'` \| `'bubble'` \| `'minimized'` | `clicked` |
-| `chat_widget_size?` | `string` (see `chat_open`) | `clicked` |
+| `chat_widget_size?` | `string` (see `chat_closed`) | `clicked` |
 | `button_text?` | `string` — clicked conversation starter / button | `clicked` |
 | `button_text_is_generated?` | `boolean` | `clicked` |
 | `trigger_conversation_starters_list?` | `string[]` | `clicked` |

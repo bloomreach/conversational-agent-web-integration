@@ -14,6 +14,7 @@ documentation. To build your own chat UI on the headless API instead of using th
 | Path | What it is |
 |---|---|
 | [`guides/`](./guides/README.md) | **Web Integration Guide.** Getting started, then one chapter per integration task: triggers, styling, custom components, event tracking, side panel, context-aware pricing, search orchestration, customer service hand-over. Start here. |
+| [`examples/`](./examples/README.md) | Code for the integrations the guides describe: custom components, add to cart, the side panel, search orchestration. Each example separates the weblayer settings Bloomreach sets from the code for your page. |
 | [`reference/widget-config.md`](./reference/widget-config.md) | `window.CLARITY_CONFIG`: every field of the widget configuration your page defines or the weblayer writes for you. |
 | [`reference/weblayer-config.md`](./reference/weblayer-config.md) | `window.CLARITY_WEBLAYER_CONFIG`: trigger templates and their parameters, scheduling, safety gates, and the widget settings set in the weblayer. |
 | [`reference/runtime-api.md`](./reference/runtime-api.md) | `window.CLARITY`: the commands your page code can call — open the chat, send a message, switch configuration. |

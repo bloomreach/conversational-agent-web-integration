@@ -1,8 +1,8 @@
 # `window.CLARITY_WEBLAYER_CONFIG` — Weblayer Configuration Reference
 
-`window.CLARITY_WEBLAYER_CONFIG` is injected by the Engagement weblayer. It configures the trigger UI, safety guards, scheduling, and how the Clarity chat widget is loaded.
+`window.CLARITY_WEBLAYER_CONFIG` is the name these pages use for the configuration object an Engagement weblayer hands to the widget loader; your Bloomreach contact sets it in the weblayer, and it is not necessarily readable as a global on your page. It configures the trigger UI, safety guards, scheduling, and how the Clarity chat widget is loaded.
 
-**Required field:** `data.banner_id` (and `widget.PARAM_clarityPersonaId`)
+**Required fields:** `data.banner_id`, `widget.projectId`, `widget.PARAM_clarityPersonaId`
 
 **Related docs:**
 - [`widget-config.md`](./widget-config.md) — the `window.CLARITY_CONFIG` fields that `widget.*` maps to
@@ -78,7 +78,7 @@ When these fields are present and valid, the weblayer runs health checks once, w
 | `sorryRate24H` | `number` | Exit if > 0.9 (>90% of responses contain an apology). |
 | `sorryRate1H` | `number` | Exit if > 0.9 AND `messageCount1H` > 5. |
 
-If any value is missing, `null`, or `''`, all safety checks are skipped, and so are the user-count and product filter gates below: the weblayer goes on to [scheduling](#scheduling).
+If any value is missing or `null`, all safety checks are skipped, and so are the user-count and product filter gates below: the weblayer goes on to [scheduling](#scheduling).
 
 ### User-Count Gate
 
@@ -130,7 +130,6 @@ Selects the trigger UI template to render. Case-insensitive. What each template 
 | `'quiz_embedded'` | Interactive quiz embedded on the page. |
 | `'interaction_embedded'` | Interactive embedded widget. |
 | `'embedded_chat'` | Full embedded chat container (no floating UI). |
-| `'banner'` | Simple debug/hello-world banner. |
 | `'follow_up'` | Follow-up weblayer; no trigger UI, loads Clarity directly. |
 
 If `triggerTemplate` is not set, `directShowWidget: true` is typically used to load the widget without a trigger — see [No trigger](../guides/01-triggers.md#no-trigger-directshowwidget).
@@ -139,7 +138,7 @@ If `triggerTemplate` is not set, `directShowWidget: true` is typically used to l
 
 ## `widgetTemplate`
 
-Selects which **widget bundle** the trigger loads when it opens Clarity. Distinct from [`triggerTemplate`](#triggertemplate), which only selects the trigger UI on the page.
+Selects which **widget bundle** the weblayer loads. Distinct from [`triggerTemplate`](#triggertemplate), which only selects the trigger UI on the page.
 
 | Value | Description |
 |---|---|
@@ -163,11 +162,11 @@ Per-banner settings still belong in `bannerSettings[source]`, since the survivin
 | Field | Type | Description |
 |---|---|---|
 | `PARAM_hideBRPowered` | `boolean` | Hide the "Powered by Bloomreach" logo in the trigger UI. |
-| `PARAM_parentElement` | `string` | CSS selector for the DOM element to insert the trigger into. Supports `PARAM_arraySplitter` for multiple candidates (uses the first matching one). Required for embedded templates. |
-| `PARAM_index` | `number` | Child index within `PARAM_parentElement` at which to insert the trigger element. Defaults to `0`. Ignored when `PARAM_targetElement` finds a match. |
+| `PARAM_parentElement` | `string` | CSS selector for the DOM element to insert the trigger into. Supports `PARAM_arraySplitter` for multiple candidates (uses the first matching one). Required for every template except `floating_trigger` and `follow_up`. |
+| `PARAM_index` | `number` | Position among the children of `PARAM_parentElement`, counted from 1: `2` makes the trigger the second child. `0` (the default) and `1` both put it first. Ignored when `PARAM_targetElement` finds a match. |
 | `PARAM_targetElement` | `string` | CSS selector for a specific child element inside `PARAM_parentElement`. When found, the trigger is inserted before/after this element and `PARAM_index` is ignored. |
 | `PARAM_positiontoTargetElement` | `'before' \| 'after'` | Where to insert relative to `PARAM_targetElement`. Defaults to `'before'`. |
-| `PARAM_CGDetectBorder` | `'top' \| 'bottom'` | For control group containers: which edge of the assigned DOM element to detect for logging the `show` event. |
+| `PARAM_CGDetectBorder` | `'top' \| 'bottom'` | Which edge of the assigned DOM element to detect for logging the `show` event. |
 | `PARAM_disableScrollDetection` | `boolean` | (v2.0 only) Skip viewport visibility detection and fire the `show` event immediately when the code runs. |
 | `PARAM_buttonText` | `string` | Main CTA button text. For embedded triggers with `PARAM_enableGeneratedQuestions: false`, used as the static button list; when empty, `widget.PARAM_placeholderQuestions` is used instead. Supports `PARAM_arraySplitter` or JSON objects with `{ text, target, payload }`. |
 | `PARAM_className` | `string` | Custom CSS class name added to the trigger root element. |
@@ -228,7 +227,7 @@ Per-banner settings still belong in `bannerSettings[source]`, since the survivin
 |---|---|---|
 | `PARAM_staticReviewQuestions` | `string` | Fixed questions shown before AI-generated ones when a review summary exists in the response. Same format as `PARAM_staticQuestionsBefore`. Only used with `PARAM_enableGeneratedQuestions: true`. |
 
-If an embedded trigger (PDP Embedded, PLP Embedded, Interaction Embedded, Embedded Chat) would render nothing — `PARAM_buttonText` is empty, or no generated questions came back and no `PARAM_fallbackQuestions`, `PARAM_staticQuestionsBefore` or `PARAM_staticQuestionsAfter` are configured — its container is hidden (`display: none`) instead of rendering empty, no `show` event is tracked, and a `clarity_warning` / `no_questions` analytics event is sent. Interaction Embedded and Embedded Chat need `PARAM_buttonText` (or `widget.PARAM_placeholderQuestions`) even with generated questions enabled. Configure `PARAM_fallbackQuestions` so that a product or category without generated questions still gets content. The trigger is also hidden, without the `no_questions` event, when the product or category lookup fails or its inputs are missing (`productIds`; for PLP Embedded also the category name). This applies with generated questions enabled, and for PDP Embedded in static mode as well.
+If an embedded trigger (PDP Embedded, PLP Embedded, Interaction Embedded, Embedded Chat) would render nothing — `PARAM_buttonText` is empty, or no generated questions came back and no `PARAM_fallbackQuestions`, `PARAM_staticQuestionsBefore` or `PARAM_staticQuestionsAfter` are configured (Embedded Chat: only the first case) — its container is hidden (`display: none`) instead of rendering empty, no `show` event is tracked, and a `clarity_warning` / `no_questions` analytics event is sent. Interaction Embedded and Embedded Chat need `PARAM_buttonText` (or `widget.PARAM_placeholderQuestions`) even with generated questions enabled. Configure `PARAM_fallbackQuestions` so that a product or category without generated questions still gets content. The trigger is also hidden, without the `no_questions` event, when the product or category lookup fails or its inputs are missing (`productIds`; for PLP Embedded also the category name). This applies with generated questions enabled, and for PDP Embedded in static mode as well.
 
 ### Interaction Embedded Only
 
@@ -282,7 +281,7 @@ type QuizQuestion = {
 
 | Field | Type | Description |
 |---|---|---|
-| `onPromptClicked` | `(question?: { text: string; isGenerated: boolean }) => void` | Replaces the default action of a prompt button, opening the chat and sending the question. The `clicked` tracking still runs. PLP Banner calls it with an empty `text`; with `PARAM_isToggleButton`, a click that hides the widget does not call it. |
+| `onPromptClicked` | `(question?: { text: string; isGenerated: boolean }) => void` | Called instead of the default action of a prompt button (opening the chat and sending the question); the chat is then not opened. The `clicked` tracking still runs. PLP Banner calls it with an empty `text`; with `PARAM_isToggleButton`, a click that hides the widget does not call it. |
 
 ### Trigger Analytics
 
@@ -334,15 +333,15 @@ These fields are mapped to `window.CLARITY_CONFIG` when the weblayer initializes
 | `PARAM_itemIdsInCart` | `getContext().cartItemIds` | Cart item IDs. Split by `PARAM_arraySplitter`. |
 | `PARAM_clarityCurrency` | [`CLARITY_CONFIG.defaultCurrency`](./widget-config.md#top-level-fields) | Currency code for product pricing. |
 | `PARAM_initialState` | [`CLARITY_CONFIG.bannerSettings[source].initialState`](./widget-config.md#bannersettings) | Widget initial expand state: `0`–`3`, as a number or a numeric string, or `'Minimized'` for `1`. |
-| `PARAM_placeholderQuestions` | [`CLARITY_CONFIG.bannerSettings[source].initialMessage.placeholderStrings`](./widget-config.md#bannersettings) | Rotating input placeholder strings. Split by `PARAM_arraySplitter`. |
+| `PARAM_placeholderQuestions` | [`CLARITY_CONFIG.bannerSettings[source].initialMessage.placeholderStrings`](./widget-config.md#bannersettings) | Input placeholder strings. Split by `PARAM_arraySplitter`. |
 | `PARAM_showPlaceholderStringsHome` | [`CLARITY_CONFIG.bannerSettings[source].initialMessage.showPlaceholderStringsHome`](./widget-config.md#bannersettings) | Show home screen when no messages exist. |
-| `PARAM_zIndex` | [`CLARITY_CONFIG.ui.zIndex`](./widget-config.md#ui--appearance--behavior) | Overrides `widget.ui.zIndex` when set. |
-| `PARAM_widgetFont` | [`CLARITY_CONFIG.ui.font`](./widget-config.md#ui--appearance--behavior) | Overrides `widget.ui.font` when set. |
-| `PARAM_clarityBackgroundColor` | [`CLARITY_CONFIG.ui.background`](./widget-config.md#ui--appearance--behavior) | Overrides `widget.ui.background` when set. |
-| `PARAM_bubbleBackgroundColor` | [`CLARITY_CONFIG.ui.bubbleBackgroundColor`](./widget-config.md#ui--appearance--behavior) | Overrides `widget.ui.bubbleBackgroundColor` when set. |
-| `PARAM_bubbleFontColor` | [`CLARITY_CONFIG.ui.bubbleFontColor`](./widget-config.md#ui--appearance--behavior) | Overrides `widget.ui.bubbleFontColor` when set. |
-| `PARAM_badgeFontColor` | [`CLARITY_CONFIG.ui.badgeFontColor`](./widget-config.md#ui--appearance--behavior) | Overrides `widget.ui.badgeFontColor` when set. |
-| `PARAM_badgeBackgroundColor` | [`CLARITY_CONFIG.ui.badgeBackgroundColor`](./widget-config.md#ui--appearance--behavior) | Overrides `widget.ui.badgeBackgroundColor` when set. |
+| `PARAM_zIndex` | [`CLARITY_CONFIG.bannerSettings[source].ui.zIndex`](./widget-config.md#ui--appearance--behavior) | Overrides `widget.ui.zIndex` when set. |
+| `PARAM_widgetFont` | [`CLARITY_CONFIG.bannerSettings[source].ui.font`](./widget-config.md#ui--appearance--behavior) | Overrides `widget.ui.font` when set. |
+| `PARAM_clarityBackgroundColor` | [`CLARITY_CONFIG.bannerSettings[source].ui.background`](./widget-config.md#ui--appearance--behavior) | Overrides `widget.ui.background` when set. |
+| `PARAM_bubbleBackgroundColor` | [`CLARITY_CONFIG.bannerSettings[source].ui.bubbleBackgroundColor`](./widget-config.md#ui--appearance--behavior) | Overrides `widget.ui.bubbleBackgroundColor` when set. |
+| `PARAM_bubbleFontColor` | [`CLARITY_CONFIG.bannerSettings[source].ui.bubbleFontColor`](./widget-config.md#ui--appearance--behavior) | Overrides `widget.ui.bubbleFontColor` when set. |
+| `PARAM_badgeFontColor` | [`CLARITY_CONFIG.bannerSettings[source].ui.badgeFontColor`](./widget-config.md#ui--appearance--behavior) | Overrides `widget.ui.badgeFontColor` when set. |
+| `PARAM_badgeBackgroundColor` | [`CLARITY_CONFIG.bannerSettings[source].ui.badgeBackgroundColor`](./widget-config.md#ui--appearance--behavior) | Overrides `widget.ui.badgeBackgroundColor` when set. |
 | `hooks` | [`CLARITY_CONFIG.bannerSettings[source].hooks`](./widget-config.md#bannersettings) (function hooks only) | Callbacks for the Clarity hooks (`version: 'WBL_BUNDLE'`), run in addition to the weblayer's own tracking. See [Hooks on a weblayer page](./hooks.md#hooks-on-a-weblayer-page). |
 | `ui` | [`CLARITY_CONFIG.bannerSettings[source].ui`](./widget-config.md#bannersettings) | Full UI config object. See [`widget-config.md → ui`](./widget-config.md#ui--appearance--behavior) for all fields. For component overrides (`ui.component`, `ui.fn`), see [Customize components](../guides/03-customize-components.md). |
 | `agentConfig` | [`CLARITY_CONFIG.bannerSettings[source].agentConfig`](./widget-config.md#bannersettings) | Agent-level configuration. |
@@ -395,11 +394,10 @@ Highlight a suggestion item by index (does not click it).
 
 | Event | Description |
 |---|---|
-| `ClarityTrigger:initialized` | Trigger component mounted. |
+| `ClarityTrigger:initialized` | Search Suggestion template mounted. |
 | `ClarityTrigger:show` | Trigger scrolled into the viewport (v1.x: IntersectionObserver; v2.0: scroll-based). |
 | `ClarityTrigger:actualShow` | (v2.0 only) Element confirmed in viewport via IntersectionObserver. |
 | `ClarityTrigger:clicked` | User clicked the trigger. |
-| `ClarityTrigger:closed` | User dismissed the trigger. |
 | `ClarityTrigger:suggestionsSearched` | Search-suggestion template started a suggestion fetch (carries `search_text`). |
 | `ClarityTrigger:suggestionsRendered` | Suggestion items were displayed. |
 | `ClarityTrigger:error` | A trigger request failed (e.g. fetching questions or suggestions). |

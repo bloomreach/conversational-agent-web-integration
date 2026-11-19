@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <style>
+    /* Yours, not shown: the page layout, with #app-body a row and #clarity-mount a full-height column in it. */
+
+    /* collapsed until the chat opens */
+    #clarity-mount {
+      width: 0;
+      overflow: hidden;
+      transition: width 0.5s ease;
+    }
+    /* Note: a fixed width, with no way for the shopper to resize the panel; add that yourself if you need it */
+    #clarity-mount.clarity-panel-open {
+      width: 470px;
+      border-left: 1px solid rgba(0, 0, 0, 0.15);
+    }
+  </style>
+</head>
+<body>
+  <!-- Yours: your header and page content. -->
+  <header id="site-header">…</header>
+
+  <div id="app-body">
+    <main id="page-content">…</main>
+
+    <!-- the widget mounts here, see ../configuration/own-container.js -->
+    <aside id="clarity-mount"></aside>
+  </div>
+
+  <script>
+    // open and close the panel with the chat
+    const mount = document.querySelector('#clarity-mount')
+    window.addEventListener('ClarityState:widgetState', (event) => {
+      const state = event.detail.state // 'hidden' | 'minimized' | 'opened' | 'maximized'
+      mount.classList.toggle('clarity-panel-open', state === 'opened' || state === 'maximized')
+    })
+  </script>
+</body>
+</html>
