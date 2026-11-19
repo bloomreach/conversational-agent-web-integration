@@ -34,6 +34,7 @@ Add this inline script **before** loading the Clarity bundle. It sets up the asy
   }
 
   window.CLARITY_CONFIG = {
+    ...(window.CLARITY_CONFIG ?? {}),   // keeps what other code of the page has already set
     projectId: '<your Engagement project id>',
     personaId: '<your agent id>',
     defaultCurrency: 'EUR',
@@ -62,7 +63,7 @@ The promise resolves to the action's result:
 
 - `user_send_message`: the chat-log events of that turn — the user message, assistant text, carousels, selected items, quick replies and metadata. In the default widget, a button message with `target: 'sqr_with_search_or_extraction'` resolves to its `UPDATE_SEARCH` event only.
 - `sync_chat`: the chat's events of the same kinds.
-- `get_recommendations` (default widget only): the recommendations.
+- `get_recommendations` (default widget only): `{ data }`, `data` being the recommended products.
 - Every other action: `undefined`.
 
 `user_send_message` and `sync_chat` resolve to the same shape in the default widget and in mobile AI Mode ([`widgetTemplate: 'ai_mode'`](./weblayer-config.md#widgettemplate)).
@@ -109,7 +110,7 @@ Use this when multiple banners are on the same page and you need to update the w
 
 ### `show_badge`
 
-Make the widget visible in its minimized (badge) state.
+Show the widget, which starts hidden. It appears minimized or open as [`initialState`](./widget-config.md#initial-state) and the shopper's last state give it.
 
 ```javascript
 await window.CLARITY?.call('show_badge')
@@ -134,7 +135,7 @@ await window.CLARITY?.call('hide_badge', { log: true })
 
 | Arg | Type | Description |
 |---|---|---|
-| `log` | `boolean` | When `true`, routes through the same close path as the widget's own close button — runs the mini-PDP/survey side effects and logs a `badge_hidden` analytics event (`action: 'close_chat_from_trigger'`). When omitted/`false`, the widget is hidden with no analytics event. |
+| `log` | `boolean` | When `true`, routes through the same close path as the widget's own close button — runs the mini-PDP/survey side effects and fires the `badgeHidden` hook, tracked with `action: 'close_chat_from_trigger'`. When omitted/`false`, the widget is hidden with no analytics event. |
 
 ---
 
@@ -190,7 +191,7 @@ await window.CLARITY?.call('user_send_message', {
   input: 'show similar products',
   invisible: true,    // hide the message from the chat UI
   target: 'find_similar_or_compatible_products',  // route to a specific agent action
-  payload: { productIds: ['123', '456'] },
+  payload: { referencedProduct: '123' },
 })
 ```
 
@@ -201,10 +202,10 @@ await window.CLARITY?.call('user_send_message', {
 | `force` | `boolean` | Send immediately without waiting for full initialization. Use with caution. Without it, the call waits until the widget is shown (`show_badge`) and initialized. |
 | `bannerName` | `string` | Optional label for analytics tracking. |
 | `triggerComponent` | `string` | Optional trigger component (e.g. trigger template) for analytics tracking. |
-| `invisible` | `boolean` | (`button` only) Hide the user message bubble in the chat UI. |
+| `invisible` | `boolean` | (`button` only, default widget) Hide the user message bubble in the chat UI. Not applied with `target: 'search_in_catalog'`. |
 | `target` | `string` | (`button` only) Direct the message to a specific agent action, bypassing intent classification. One of `'results_summarizer'`, `'search_in_catalog'`, `'sqr_with_search_or_extraction'`, `'products_expert_question'`, `'find_similar_or_compatible_products'`, `'post_search'`. |
-| `source` | `string` | (`button` only) Button source context passed to the AI for conversation quality. |
-| `payload` | `any` | (`button` only) Arbitrary data passed alongside the message to the agent. |
+| `source` | `'DISCOVERY' \| 'DISCOVERY_QR' \| 'DISCOVERY_SUGGESTION'` | (`button` with `target` `'results_summarizer'`, `'search_in_catalog'` or `'sqr_with_search_or_extraction'` only) Button source context passed to the AI for conversation quality. Defaults to `'DISCOVERY'`. |
+| `payload` | `object` | (`button` only) Data passed alongside the message to the agent, for example `referencedProduct`, the product a `'find_similar_or_compatible_products'` call is about. |
 
 ---
 
@@ -279,7 +280,7 @@ const result = await window.CLARITY?.call('get_recommendations', {
 window.CLARITY?.call('show_badge')
 ```
 
-### Open chat pre-filled from a search input
+### Open the chat and send the search input
 
 ```javascript
 searchInput.addEventListener('keydown', async (e) => {
@@ -318,7 +319,7 @@ buttonEl.addEventListener('click', async () => {
     input: 'Show similar products',
     invisible: true,
     target: 'find_similar_or_compatible_products',
-    payload: { productIds: currentProductIds },
+    payload: { referencedProduct: currentProductId },
   })
 })
 ```

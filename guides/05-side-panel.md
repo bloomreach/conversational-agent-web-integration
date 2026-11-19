@@ -4,11 +4,11 @@
 
 Desktop AI Mode turns the Clarity chat widget into a resizable side panel on desktop. Instead of floating over the page, the widget becomes a column on the left or right edge of the viewport and the page's own content is pushed to the other side. Shoppers keep browsing while the conversation stays open next to them.
 
-This guide is for the developer and the Engagement admin who integrate the widget on a storefront. It is split by who does what:
+This guide is for the developer who integrates the widget on a storefront. It is split by who does what:
 
-- **Part 1 — Weblayer settings** are set in the Engagement weblayer (`window.CLARITY_WEBLAYER_CONFIG`). No storefront deployment is needed for them.
+- **Part 1 — Weblayer settings** are set in the Engagement weblayer (`window.CLARITY_WEBLAYER_CONFIG`) by your Bloomreach contact ([who changes the weblayer](./README.md#how-the-widget-reaches-your-page)). No storefront deployment is needed for them.
 - **Part 2 — Your web page code** lists what the storefront codebase itself has to provide.
-- **Part 3 — Complete example** puts both sides together for a React (Next.js) storefront.
+- **Part 3 — Example** shows the page-side code for product clicks and search results on a React (Next.js) storefront.
 - **Part 4 — Multi-page storefronts** covers sites where every navigation is a full page load.
 - **Part 5 — Alternative** covers mounting into a container of your own instead, for layouts the built-in side panel cannot produce.
 
@@ -50,7 +50,7 @@ widget: {
 
 With this set, the widget mounts as a column next to the page content. Everything already in `<body>` — including your site header and footer — moves into the other column. If they need to stay outside the split, mount into a container of your own instead: see [Part 5](#part-5--alternative-mount-into-your-own-container).
 
-The panel starts collapsed (width 0) and slides open when the chat opens; it collapses again when the chat is closed, minimized or hidden. While open, a thin handle on the panel's inner edge lets the shopper drag it wider or narrower.
+The panel starts collapsed (width 0) and slides open when the chat opens; it collapses again when the chat is closed, minimized or hidden. While open, a thin handle on the panel's inner edge lets the shopper drag it wider or narrower. The header's close button is hidden in the side panel unless [`ui.showCloseWhenInElement`](../reference/widget-config.md#display-toggles) is set.
 
 ### 1.2 Panel options
 
@@ -88,15 +88,15 @@ widget: {
   ui: {
     fn: {
       goToProductPage: (variant, config) => {
-        const path = new URL(config.parentProduct.url).pathname
-        window.__clarityRouter?.push(path)
+        const url = new URL(config.parentProduct.url, window.location.href)
+        window.__clarityRouter?.push(url.pathname + url.search + url.hash)
       },
     },
   },
 }
 ```
 
-`variant` is the clicked item, `config.parentProduct` is the product that owns it (the same object when there is no separate variant), and `config.source` is where the click came from (`'product_card'`, `'mini_pdp_product'`, …). Analytics events and the "Now viewing product …" banner are still produced by the widget; only the navigation is yours. `window.__clarityRouter` is provided by the page, see [2.5](#25-expose-your-spa-router).
+`variant` is the clicked item, `config.parentProduct` is the product that owns it (the same product when there is no separate variant), and `config.source` is where the click came from (`'product_card'`, `'mini_pdp_product'`, …). Analytics events and the "Now viewing product …" banner are still produced by the widget; only the navigation is yours. `window.__clarityRouter` is provided by the page, see [2.5](#25-expose-your-spa-router).
 
 Links inside assistant text messages do not go through `goToProductPage`; they open as normal links. See [`ui.pdpLinkRegex`](../reference/widget-config.md#feature-flags), [`ui.openPdpInNewTab`](../reference/widget-config.md#feature-flags) and [`ui.fn.getLinkOptions`](./03-customize-components.md#fngetlinkoptions) for how those links are handled.
 
@@ -265,24 +265,7 @@ See [`runtime-api.md`](../reference/runtime-api.md) for all actions.
 
 ### 2.3 Render widget search results on your own grid
 
-Needed when search results are [handed to the page](#14-hand-search-results-to-the-page) (the default under `desktopTemplate: 'ai_mode'`). Listen for the `Clarity:searchedProducts` event, keep the products, and show them on your results page.
-
-```javascript
-window.addEventListener('Clarity:searchedProducts', (event) => {
-  const detail = event.detail
-  if (!detail || detail.from_history) return
-
-  const products = (detail.products_data ?? []).flatMap((batch) => batch.data ?? [])
-  if (!products.length) return
-
-  const key = String(Date.now())
-  window.clarityPage ??= {}
-  window.clarityPage.clarityResults = { key, products }
-  window.__clarityRouter?.push(`/search?clarityResults=${key}`)
-})
-```
-
-The key gives every answer its own results URL, so a new answer while the shopper is already on the results page still updates it. Your results page shows `clarityResults.products` when `clarityResults.key` matches the URL's `clarityResults` parameter, as the [complete example](#32-storefront-side) does.
+Needed when search results are [handed to the page](#14-hand-search-results-to-the-page) (the default under `desktopTemplate: 'ai_mode'`). Listen for the `Clarity:searchedProducts` event, keep the products, and show them on your results page. In the Next.js example, [`ClarityBridge.jsx`](../examples/side-panel/react/ClarityBridge.jsx) listens and navigates to the results page, and [`SearchResults.jsx`](../examples/side-panel/react/SearchResults.jsx) shows the products. The products are stored under a key that is also put in the results URL, so every answer gets its own URL and a new answer while the shopper is already on the results page still updates it.
 
 Event payload (`event.detail`):
 
@@ -295,7 +278,7 @@ Event payload (`event.detail`):
 Notes for the product mapping:
 
 - `price` is the current price. `originalPrice`, when present, is the pre-discount price to show crossed out.
-- `url` is the product's public URL. Its id segment can be a group and variant joined by `___` (for example `/products/1305___1305`); take the part before `___` if your routes use the group id.
+- `url` is the product page URL from your catalog.
 - The products are kept in memory only, so a reload of the results page finds none; to keep them across a page load, see [4.3](#43-search-results-across-a-page-load).
 
 ### 2.4 Expose live page context
@@ -308,6 +291,9 @@ A simple pattern is one global object that every page view writes to on mount:
 // product page
 useEffect(() => {
   window.clarityPage = { ...window.clarityPage, currentProductId: product.id, currentCategoryName: undefined }
+  return () => {
+    window.clarityPage = { ...window.clarityPage, currentProductId: undefined }
+  }
 }, [product.id])
 
 // category page
@@ -322,26 +308,7 @@ The widget reads the context when it initializes, when the chat is opened, befor
 
 ### 2.5 Expose your SPA router
 
-Needed when [`goToProductPage`](#13-route-product-clicks-through-your-router) is set. Publish a router object on `window` so the weblayer function can call it. For Next.js (app router):
-
-```jsx
-'use client'
-import { useRouter } from 'next/navigation'
-import { useEffect } from 'react'
-
-export const ClarityRouterBridge = () => {
-  const router = useRouter()
-  useEffect(() => {
-    window.__clarityRouter = router
-    return () => {
-      if (window.__clarityRouter === router) delete window.__clarityRouter
-    }
-  }, [router])
-  return null
-}
-```
-
-Render it once in the root layout. If your routes carry a prefix (a locale or channel segment), wrap `push` so it adds the prefix:
+Needed when [`goToProductPage`](#13-route-product-clicks-through-your-router) is set. Publish a router object on `window` so the weblayer function can call it; for Next.js (app router), [`ClarityBridge.jsx`](../examples/side-panel/react/ClarityBridge.jsx) does it from a component rendered once in the root layout. If your routes carry a prefix (a locale or channel segment), wrap `push` so it adds the prefix:
 
 ```javascript
 window.__clarityRouter = {
@@ -354,214 +321,9 @@ The name `__clarityRouter` is a convention between your weblayer function and yo
 
 ---
 
-## Part 3 — Complete example
+## Part 3 — Example
 
-A Next.js (app router) storefront with product, category and search pages, wired to the widget with every setting from Part 1. Only the Clarity-related code is shown; the rest of each page is left out. The two halves talk to each other through three `window` globals:
-
-| Global | Written by | Read by |
-|---|---|---|
-| `window.clarityPage` | the storefront pages (current product, category, listing ids, Clarity results) | the weblayer's `getContext` / `getCategoryInfo` |
-| `window.__clarityRouter` | the storefront's `ClarityBridge` | the weblayer's `goToProductPage` |
-| `Clarity:searchedProducts` (event) | the widget | the storefront's `ClarityBridge` |
-
-### 3.1 Weblayer side
-
-```javascript
-window.CLARITY_WEBLAYER_CONFIG = {
-  ...
-
-  widget: {
-    ...
-
-    getContext: () => ({
-      currentItemId: window.clarityPage?.currentProductId,
-      currentItemIdsType: 'item_id',
-      pdpUrl: window.location.href,
-    }),
-    getCategoryInfo: () => ({
-      plpCategoryName: window.clarityPage?.currentCategoryName,
-    }),
-
-    ui: {
-      desktopTemplate: 'ai_mode',
-      desktopTemplateOptions: {
-        chatContainerPosition: 'right',
-        width: '470px',
-      },
-      showPDPEnterQuestions: true,
-      showContextStateChange: true,
-      fn: {
-        goToProductPage: (variant, config) => {
-          const path = new URL(config.parentProduct.url).pathname
-          window.__clarityRouter?.push(path)
-        },
-        hideSearchResultCarousels: () => !window.clarityPage?.currentProductId,
-      },
-    },
-  },
-}
-```
-
-### 3.2 Storefront side
-
-```
-src/
-├── lib/clarityPage.js                   window.clarityPage helpers
-├── app/layout.jsx                       renders ClarityBridge once
-├── app/ClarityBridge.jsx                router bridge + search results listener
-├── app/products/[id]/page.jsx           publishes the current product
-├── app/categories/[id]/CategoryView.jsx publishes the current category and listing ids
-└── app/search/page.jsx                  shows Clarity results when ?clarityResults is set
-```
-
-**`src/lib/clarityPage.js`** — one place that owns the global:
-
-```javascript
-const store = () => (window.clarityPage ??= {})
-
-export const setPageContext = (patch) => {
-  Object.assign(store(), patch)
-}
-
-// Keyed, so the results URL of an earlier answer does not show the latest products
-export const setClarityResults = (products) => {
-  const key = String(Date.now())
-  store().clarityResults = { key, products }
-  return key
-}
-
-export const getClarityResults = (key) => {
-  const results = store().clarityResults
-  return results?.key === key ? results.products : null
-}
-
-// Widget product → this app's product card shape. `price` is the current price and
-// `originalPrice` the pre-discount one; the url's id segment can be `group___variant`.
-export const toStoreProduct = (item) => {
-  const match = item.url?.match(/\/products\/([^/?#]+)/)
-  const pid = match ? match[1].split('___')[0] : item.id
-  return {
-    pid,
-    href: `/products/${pid}`,
-    title: item.title,
-    image: item.image,
-    price: item.originalPrice ?? item.price,
-    salePrice: item.originalPrice ? item.price : undefined,
-  }
-}
-```
-
-**`src/app/ClarityBridge.jsx`** — mounted once, exposes the router and receives search results:
-
-```jsx
-'use client'
-import { useRouter } from 'next/navigation'
-import { useEffect } from 'react'
-import { setClarityResults } from '@/lib/clarityPage'
-
-export const ClarityBridge = () => {
-  const router = useRouter()
-
-  useEffect(() => {
-    window.__clarityRouter = router
-
-    const onSearchedProducts = (event) => {
-      const detail = event.detail
-      if (!detail || detail.from_history) return
-      const products = (detail.products_data ?? []).flatMap((batch) => batch.data ?? [])
-      if (!products.length) return
-      router.push(`/search?clarityResults=${setClarityResults(products)}`)
-    }
-    window.addEventListener('Clarity:searchedProducts', onSearchedProducts)
-
-    return () => {
-      window.removeEventListener('Clarity:searchedProducts', onSearchedProducts)
-      if (window.__clarityRouter === router) delete window.__clarityRouter
-    }
-  }, [router])
-
-  return null
-}
-```
-
-**`src/app/layout.jsx`**:
-
-```jsx
-import { ClarityBridge } from './ClarityBridge'
-
-export default function RootLayout({ children }) {
-  return (
-    <html lang="en">
-      <body>
-        <ClarityBridge />
-        {children}
-      </body>
-    </html>
-  )
-}
-```
-
-**`src/app/products/[id]/page.jsx`** — publishes the product the shopper is looking at:
-
-```jsx
-'use client'
-import { useEffect } from 'react'
-import { useParams } from 'next/navigation'
-import { setPageContext } from '@/lib/clarityPage'
-
-export default function ProductPage() {
-  const id = useParams().id
-  useEffect(() => {
-    setPageContext({ currentProductId: id, currentCategoryName: undefined })
-    return () => setPageContext({ currentProductId: undefined })
-  }, [id])
-
-  return <>{/* product detail */}</>
-}
-```
-
-**`src/app/categories/[id]/CategoryView.jsx`** — rendered by the category page with the data it loaded; publishes the category and the ids on the grid:
-
-```jsx
-'use client'
-import { useEffect } from 'react'
-import { setPageContext } from '@/lib/clarityPage'
-
-export const CategoryView = ({ category, products }) => {
-  useEffect(() => {
-    setPageContext({
-      currentProductId: undefined,
-      currentCategoryName: category.name,
-      listingProductIds: products.map((p) => p.pid),
-    })
-  }, [category, products])
-
-  return <>{/* product grid */}</>
-}
-```
-
-**`src/app/search/page.jsx`** — the results route the bridge navigates to:
-
-```jsx
-'use client'
-import { useEffect, useState } from 'react'
-import { useSearchParams } from 'next/navigation'
-import { getClarityResults, toStoreProduct } from '@/lib/clarityPage'
-
-export default function SearchPage() {
-  const resultsKey = useSearchParams().get('clarityResults')
-  const [products, setProducts] = useState([])
-
-  useEffect(() => {
-    setProducts(resultsKey ? (getClarityResults(resultsKey) ?? []).map(toStoreProduct) : [])
-  }, [resultsKey])
-
-  if (!resultsKey) return <>{/* regular search */}</>
-  return <>{/* product grid rendering `products` */}</>
-}
-```
-
-Every answer gets its own results URL, so a new answer while the shopper is on the results page updates the grid.
+[`examples/side-panel/`](../examples/side-panel/README.md) shows two of the page-side pieces together, for a Next.js (app router) storefront: product clicks going through your router ([1.3](#13-route-product-clicks-through-your-router), [2.5](#25-expose-your-spa-router)) and search results rendered on your own grid ([1.4](#14-hand-search-results-to-the-page), [2.3](#23-render-widget-search-results-on-your-own-grid)). Bloomreach's side is in `configuration/side-panel.js`, your page's side in `react/`.
 
 ---
 
@@ -623,76 +385,17 @@ Whichever you use:
 
 ### 4.3 Search results across a page load
 
-When search results are [handed to the page](#14-hand-search-results-to-the-page), the listener from [2.3](#23-render-widget-search-results-on-your-own-grid) cannot keep the products in memory: loading your results page discards them. Store them in `sessionStorage` instead and navigate with a normal page load.
+When search results are [handed to the page](#14-hand-search-results-to-the-page), the listener from [2.3](#23-render-widget-search-results-on-your-own-grid) cannot keep the products in memory: loading your results page discards them. Store them in `sessionStorage` instead and navigate with a normal page load, as the first half of [`search-results.js`](../examples/side-panel/plain-js/search-results.js) does.
 
-`sessionStorage` holds about 5 MB per origin in current browsers, shared with everything else your site keeps there, and `setItem` throws once it is full. A product as the widget sends it carries every attribute configured for the persona, so store only the fields your product card renders and cap the number of products:
-
-```javascript
-window.addEventListener('Clarity:searchedProducts', (event) => {
-  const detail = event.detail
-  if (!detail || detail.from_history) return
-
-  const products = (detail.products_data ?? [])
-    .flatMap((batch) => batch.data ?? [])
-    .slice(0, 48) // as many as your results grid shows
-    .map((p) => ({
-      id: p.id,
-      title: p.title,
-      url: p.url,
-      image: p.image,
-      price: p.price,
-      originalPrice: p.originalPrice,
-    }))
-  if (!products.length) return
-
-  try {
-    sessionStorage.setItem('clarityResults', JSON.stringify(products))
-  } catch {
-    // storage full or blocked: the results page falls back to the widget's replay, see below
-    try {
-      sessionStorage.removeItem('clarityResults')
-    } catch {}
-  }
-  window.location.assign('/search?fromClarity=true')
-})
-```
+`sessionStorage` holds about 5 MB per origin in current browsers, shared with everything else your site keeps there, and `setItem` throws once it is full. A product as the widget sends it carries every attribute configured for the persona, so for large result sets store only the fields your product card renders and cap the number of products.
 
 Include this listener on every page, since the shopper can ask from any of them. The event fires once the assistant's answer is complete, so the navigation does not cut off the reply.
 
 Navigate even when storing fails. The chat does not show these results: they were handed to the page, so a shopper left on the current page sees an answer without its products. The results are not lost, though. Each time the widget loads on a page it replays the conversation's search results that are handed to the page, as a `searchedProducts` event with `from_history: true`, and the results page can take them from there.
 
-On the results page, read the stored products back, and fall back to the replay when there are none:
+On the results page, read the stored products back, and fall back to the replay when there are none, as the second half of the same file does.
 
-```javascript
-const readStoredResults = () => {
-  try {
-    return JSON.parse(sessionStorage.getItem('clarityResults') ?? 'null')
-  } catch {
-    return null
-  }
-}
-
-const fromClarity = new URLSearchParams(window.location.search).get('fromClarity') === 'true'
-const stored = fromClarity ? readStoredResults() : null
-
-if (stored) {
-  renderProducts(stored)
-} else if (fromClarity) {
-  const onReplay = (event) => {
-    if (!event.detail?.from_history) return
-    clearTimeout(timer)
-    window.removeEventListener('Clarity:searchedProducts', onReplay)
-    renderProducts(event.detail.products_data?.at(-1)?.data ?? [])
-  }
-  window.addEventListener('Clarity:searchedProducts', onReplay)
-  const timer = setTimeout(() => {
-    window.removeEventListener('Clarity:searchedProducts', onReplay)
-    renderProducts([]) // nothing to replay: leave the loading state
-  }, 10000)
-}
-```
-
-`renderProducts` stands for your own product card rendering. The replay covers the whole conversation and does not say which answer a batch came from, so the snippet takes the last batch, which is the latest answer's results when that answer returned a single batch. It is dispatched once, while the widget initializes and before `Clarity:initialized`, and cannot be requested again, so register the listener synchronously when your script starts, not after your own data has loaded. Whether your script runs before the widget initializes depends on your page: with the Engagement snippet inline and your bundle deferred it does, since the replay follows several network round trips after the snippet; if your script can start later than that, a missed replay cannot be recovered and the timeout is what gets the shopper out. The replay arrives only after the widget has loaded and fetched the conversation, so show a loading state until then, and leave it after the timeout: when neither the stored results nor the replay arrive, the shopper needs a way to ask again, for example an empty grid with a button that opens the chat.
+`renderProducts` stands for your own product card rendering. The replay covers the whole conversation and does not say which answer a batch came from, so the example takes the last batch, which is the latest answer's results when that answer returned a single batch. It is dispatched once, while the widget initializes and before `Clarity:initialized`, and cannot be requested again, so register the listener synchronously when your script starts, not after your own data has loaded. Whether your script runs before the widget initializes depends on your page: with the Engagement snippet inline and your bundle deferred it does, since the replay follows several network round trips after the snippet; if your script can start later than that, a missed replay cannot be recovered. The replay arrives only after the widget has loaded and fetched the conversation, so show a loading state until then, and leave it after a timeout of your own: when neither the stored results nor the replay arrive, the shopper needs a way to ask again, for example an empty grid with a button that opens the chat.
 
 The mapping notes in [2.3](#23-render-widget-search-results-on-your-own-grid) apply here as well.
 
@@ -702,7 +405,7 @@ The mapping notes in [2.3](#23-render-widget-search-results-on-your-own-grid) ap
 
 ### 5.1 When to use it
 
-`desktopTemplate: 'ai_mode'` moves **everything** in `<body>` into the left column of its own flex row. That is what makes it zero-markup, but it also means your site header, nav and footer end up inside that column and are as wide as it is. If the design calls for a full-width header sitting above the panel, a footer outside the split, or a panel confined to one region of the page, mount the widget into a container of your own instead.
+`desktopTemplate: 'ai_mode'` moves **everything** in `<body>` into the other column of its own flex row. That is what makes it zero-markup, but it also means your site header, nav and footer end up inside that column and are as wide as it is. If the design calls for a full-width header sitting above the panel, a footer outside the split, or a panel confined to one region of the page, mount the widget into a container of your own instead.
 
 ### 5.2 What changes and what does not
 
@@ -713,132 +416,36 @@ Everything in Parts 1 to 4 still applies, except:
 | Section | With your own container |
 |---|---|
 | [1.1](#11-turn-on-the-side-panel), [1.2](#12-panel-options) | Replaced by `widget.PARAM_clarityParentElement` (see [5.6](#56-weblayer-config)). `desktopTemplate` and `desktopTemplateOptions` are not set. |
+| [1.4](#14-hand-search-results-to-the-page) | `hideSearchResultCarousels` has to be set: unset, search results stay in the chat. |
 | [2.1](#21-page-layout-checklist-required) | Does not apply. Nothing is reparented, `window` keeps scrolling, and `position: fixed` elements behave normally. |
 
-What you take on: the flex layout, the open and close animation, and the drag handle. The rest of this part is a working implementation of all three.
+What you take on: the page layout, and opening and closing the panel with the chat. [`own-container.html`](../examples/side-panel/plain-js/own-container.html) shows the panel's part of both; the sections below explain its markup, its styles and its script. The built-in panel's drag handle has no counterpart here: resizing is yours to add.
 
 ### 5.3 Markup
 
-Two nested elements. The outer one holds the resize handle, the inner one is what you hand to the widget — the widget fills it completely with its own markup, so anything you place inside it is painted over.
-
-```html
-<header id="site-header">…</header>
-
-<div id="app-body">
-  <main id="page-content">…</main>
-
-  <aside id="clarity-panel">
-    <div id="clarity-handle"></div>
-    <div id="clarity-mount"></div>
-  </aside>
-</div>
-```
+One element for the widget, next to your page content. The widget fills it completely with its own markup, so anything you place inside it is painted over.
 
 ### 5.4 CSS
 
-```css
-body       { display: flex; flex-direction: column; height: 100dvh; margin: 0 }
-#site-header { flex-shrink: 0 }
-#app-body  { display: flex; flex: 1; min-height: 0 }
-#page-content { flex: 1; min-width: 0; overflow-y: auto }
-
-#clarity-panel { position: relative; display: flex; flex-shrink: 0 }
-
-#clarity-mount {
-  width: 0;
-  min-width: 0;
-  overflow: hidden;
-  /* seals the widget's own stacking context so its modals and dropdowns,
-     which carry high z-indexes, cannot paint over the handle outside it */
-  isolation: isolate;
-  transition: width 0.5s ease, min-width 0.5s ease;
-}
-
-#clarity-panel.clarity-panel-open #clarity-mount {
-  width: var(--clarity-panel-width, 470px);
-  min-width: 360px;
-  max-width: 80vw;
-  border-left: 1px solid rgba(0, 0, 0, 0.15);
-}
-
-/* while dragging, drop the transition so the panel tracks the pointer 1:1 */
-#clarity-panel.clarity-panel-dragging #clarity-mount { transition: none }
-
-#clarity-handle {
-  position: absolute;
-  left: -3px;
-  top: 0;
-  bottom: 0;
-  width: 6px;
-  cursor: ew-resize;
-  touch-action: none;
-  z-index: 2;
-}
-#clarity-panel:not(.clarity-panel-open) #clarity-handle { display: none }
-```
-
-`min-width` and `max-width` always win over an inline `width`, so they clamp the drag for free and the JavaScript below does no arithmetic of its own.
+The styles animate the panel's width between collapsed and open; the page layout around it is yours.
 
 While the chat is minimized the widget renders its badge (`clarity-minimized`), as in the built-in side panel. The badge is `position: fixed` at [`ui.position`](../reference/widget-config.md#layout--positioning), so the collapsed mount does not clip it; hide it with CSS if your page opens the chat only from its own buttons.
 
 ### 5.5 JavaScript
 
-Two jobs: mirror the widget's open state onto the panel, and implement the drag.
+The script mirrors the widget's open state onto the panel, from the `ClarityState:widgetState` event.
 
-```javascript
-const panel  = document.querySelector('#clarity-panel')
-const mount  = document.querySelector('#clarity-mount')
-const handle = document.querySelector('#clarity-handle')
-
-window.addEventListener('ClarityState:widgetState', (event) => {
-  const state = event.detail?.state
-  const open = state === 'opened' || state === 'maximized'
-  panel.classList.toggle('clarity-panel-open', open)
-  // a drag leaves an inline width that outranks the class rule and is never cleared on its own;
-  // without this, closing after a drag leaves the panel pinned at its last dragged size
-  if (!open) mount.style.width = ''
-})
-
-let dragStart = null
-
-const onPointerMove = (event) => {
-  if (!dragStart) return
-  // the handle is on the panel's left edge and the right edge is anchored,
-  // so dragging left (decreasing clientX) makes the panel wider
-  mount.style.width = `${dragStart.width - (event.clientX - dragStart.x)}px`
-}
-
-const onPointerUp = (event) => {
-  handle.releasePointerCapture(event.pointerId)
-  handle.removeEventListener('pointermove', onPointerMove)
-  handle.removeEventListener('pointerup', onPointerUp)
-  panel.classList.remove('clarity-panel-dragging')
-  dragStart = null
-}
-
-handle.addEventListener('pointerdown', (event) => {
-  event.preventDefault()
-  // capture on the handle: every later event for this pointer is retargeted here regardless of
-  // what is visually underneath, so dragging across the widget's own chat content keeps working
-  handle.setPointerCapture(event.pointerId)
-  dragStart = { x: event.clientX, width: mount.getBoundingClientRect().width }
-  panel.classList.add('clarity-panel-dragging')
-  handle.addEventListener('pointermove', onPointerMove)
-  handle.addEventListener('pointerup', onPointerUp)
-})
-```
-
-If you only want the open and close animation and no drag handle, you can skip the JavaScript entirely and key the CSS off the widget's own markup instead, since the widget is rendered in the light DOM:
+You can skip it and key the CSS off the widget's own markup instead, since the widget is rendered in the light DOM:
 
 ```css
-#clarity-mount:has(.clarity-chat-open) { width: var(--clarity-panel-width, 470px) }
+#clarity-mount:has(.clarity-chat-open) { width: 470px }
 ```
 
-`clarity-chat-open` is a documented modifier on `clarity-resizable-chat-wrapper`, which the widget renders only while the chat is open. See [`styles.md`](../reference/styles.md#clarity-resizable-chat-wrapper). The `ClarityState:widgetState` event above is the more stable of the two, so prefer it when you are writing JavaScript anyway.
+`clarity-chat-open` is a documented modifier on `clarity-resizable-chat-wrapper`, which the widget renders only while the chat is open. See [`styles.md`](../reference/styles.md#clarity-resizable-chat-wrapper). The event is the more stable of the two, so prefer it when you are writing JavaScript anyway.
 
 ### 5.6 Weblayer config
 
-Point the widget at the inner container and drop the side-panel keys. Everything else from [3.1](#31-weblayer-side) stays as it is.
+Point the widget at your container and drop the side-panel keys. Everything else stays as in [Part 1](#part-1--weblayer-settings); [`configuration/own-container.js`](../examples/side-panel/configuration/own-container.js) is the example's weblayer side.
 
 ```javascript
 widget: {

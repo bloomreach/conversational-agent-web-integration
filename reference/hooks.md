@@ -1,11 +1,11 @@
 # Hooks and browser events
 
-The widget tells your page what happens in the chat — it opened, the shopper sent a message, a product was added to the cart — through **hooks**. Every hook but one is also dispatched as a browser `CustomEvent` on `window`, so there are three ways to react, depending on how the widget reaches your page:
+The widget tells your page what happens in the chat — it opened, the shopper sent a message, a product was added to the cart — through **hooks**. Every hook is also dispatched as a browser `CustomEvent` on `window`, so there are three ways to react, depending on how the widget reaches your page:
 
 | Your integration | How to listen | What you receive |
 |---|---|---|
 | Any: the widget is delivered by an Engagement weblayer, or you set up `window.CLARITY_CONFIG` yourself | `window.addEventListener('Clarity:<hook>', e => …)`. Weblayer-delivered: nothing to configure. Standalone: set `hooks: { version: 'WBL_BUNDLE' }` even if you register no callbacks. See [Browser events](#browser-events). Trigger events (`ClarityTrigger:<hook>`) exist only with a weblayer | `event.detail`: the params object documented on this page |
-| Weblayer-delivered, and you add your own callbacks in the weblayer's [`widget.hooks`](./weblayer-config.md#widget--clarity-widget-settings) or a trigger's `hooks` | The callbacks run in addition to the weblayer's own analytics tracking. See [Hooks on a weblayer page](#hooks-on-a-weblayer-page) | The params object (`WBL_BUNDLE` format) |
+| Weblayer-delivered, with callbacks set in the weblayer's [`widget.hooks`](./weblayer-config.md#widget--clarity-widget-settings) or a trigger's `hooks` | The callbacks run in addition to the weblayer's own analytics tracking. See [Hooks on a weblayer page](#hooks-on-a-weblayer-page) | The params object (`WBL_BUNDLE` format) |
 | Standalone `window.CLARITY_CONFIG` | [`hooks: { version: 'WBL_BUNDLE', … }`](./widget-config.md#hooks--event-hooks). See [The `hooks` object](#the-hooks-object) | The params object |
 
 Hooks come in three groups. **Engagement hooks** describe what the shopper and the assistant did; when the widget is weblayer-delivered, the weblayer tracks each of them to Engagement analytics under the **action** listed with the hook — the tracked fields are in [`analytics-events.md`](./analytics-events.md). **Function hooks** are actionable callbacks (e.g. "a response is being processed") and are not tracked. **Trigger hooks** come from the weblayer's trigger templates (floating button, PDP/PLP embeds, search suggestions, quiz), not from the chat itself.
@@ -14,7 +14,7 @@ Hooks come in three groups. **Engagement hooks** describe what the shopper and t
 
 ## The `hooks` object
 
-`version` must be `'WBL_BUNDLE'`: it is the only supported format, and the weblayer always uses it. Every callback receives one params object, which is also the shape of `event.detail` on the [browser events](#browser-events).
+`version` must be `'WBL_BUNDLE'`: it is the only supported format, and the weblayer always uses it. Every callback receives one params object (`processingMessage` a boolean), which is also the shape of `event.detail` on the [browser events](#browser-events).
 
 ```typescript
 hooks: {
@@ -25,7 +25,7 @@ hooks: {
   searchedProducts?: (a: HookParams) => void
   processingMessage?: (processing: boolean) => void
 
-  // Engagement event hooks (also fire browser events):
+  // Engagement event hooks:
   initialized?: (a: HookParams) => void
   reloaded?: (a: HookParams) => void
   chatOpen?: (a: HookParams) => void
@@ -41,7 +41,7 @@ hooks: {
 
 ### Hooks on a weblayer page
 
-- **For one weblayer:** set the callbacks in its [`widget.hooks`](./weblayer-config.md#widget--clarity-widget-settings). They are called while that weblayer's banner is the active source, that is, while the widget runs on that weblayer's settings.
+- **For one weblayer:** callbacks in its [`widget.hooks`](./weblayer-config.md#widget--clarity-widget-settings), set by your Bloomreach contact, are called while that weblayer's banner is the active source, that is, while the widget runs on that weblayer's settings.
 - **For every weblayer on the page:** set them on `window.CLARITY_CONFIG.hooks` from your page. Add to that object rather than replacing it, so it works whether your script runs before or after the weblayer:
 
   ```javascript
@@ -61,7 +61,9 @@ Of the function hooks, mobile AI Mode fires only `processingMessage`; the others
 
 ## Clarity Hooks
 
-Fired by the chat widget. Each hook lists the analytics **action** the weblayer tracks it under; _(none)_ means it is not tracked.
+Fired by the chat widget. Each hook lists the analytics **action** the weblayer tracks it under; _(none)_ means it is not tracked. `chatOpen`, `chatClosed` and `badgeHidden` are tracked under their own [`action`](#property-reference) param when they carry one (for example `expand_from_minimized`).
+
+Mobile AI Mode fires only `initialized`, `widgetShown`, `chatClosed`, `userRespond`, `clarityRespond`, `externalAgentRespond`, `urlClick`, `miniPdpClick`, `closeMiniPdp`, `clarityWarning` and `clarityError`, each with `agent_id`, `source` and the hook's own fields only; the per-product and per-button hooks are not fired.
 
 ### Hook → Action mapping
 
@@ -134,7 +136,7 @@ Fired when the user explicitly expands the chat widget.
 
 **Action:** `chat_open`
 
-Fields: `agent_id`, `source`, `conversation_state`, `chat_widget_size`, `chat_config`, `action`?, `button_text`?, `chat_opened_from_trigger`?, `chat_opened_from_trigger_component`?
+Fields: `agent_id`, `source`, `conversation_state`, `chat_config`, `action`?, `button_text`?, `chat_opened_from_trigger`?, `chat_opened_from_trigger_component`?
 
 ---
 
@@ -144,7 +146,7 @@ Fired when the user minimizes the chat widget. AI Mode fires it from its close b
 
 **Action:** `chat_closed`
 
-Fields: `agent_id`, `source`, `conversation_state`, `chat_widget_size`, `chat_config`, `action`? (AI Mode: `agent_id` and `source` only)
+Fields: `agent_id`, `source`, `conversation_state`, `chat_widget_size`, `chat_config`, `action`?
 
 ---
 
@@ -166,7 +168,7 @@ Fired when the user closes the widget entirely.
 
 **Action:** `close`
 
-Fields: `agent_id`, `source`, `conversation_state`, `chat_widget_size`, `chat_config`, `action`? (e.g. `'close_chat_from_trigger'`, `'close_chat_from_minimized'`)
+Fields: `agent_id`, `source`, `conversation_state`, `chat_widget_size`?, `chat_config`, `action`? (e.g. `'close_chat_from_trigger'`, `'close_chat_from_minimized'`)
 
 ---
 
@@ -176,7 +178,7 @@ Fired when the user dismisses the initial message bubble.
 
 **Action:** `close_bubble`
 
-Fields: `agent_id`, `source`, `conversation_state`, `chat_widget_size`, `chat_config`
+Fields: `agent_id`, `source`, `conversation_state`, `chat_config`
 
 ---
 
@@ -186,7 +188,7 @@ Fired when the user sends any message (text, button, or quick reply).
 
 **Action:** `user_respond`
 
-Fields: `agent_id`, `source`, `conversation_state`, `chat_widget_size`, `chat_config`, `type`, `button_text`?, `button_payload`?, `target`?, `product_ids`?, `clicked_in_trigger`?
+Fields: `agent_id`, `source`, `conversation_state`, `chat_widget_size`, `chat_config`, `type`, `button_text`?, `button_payload`?, `target`?, `product_ids`?, `product_names`?, `clicked_in_trigger`?
 
 > When `product_ids` is non-empty, `userRespondProduct` is also fired once per product.
 
@@ -267,7 +269,7 @@ Fields: `agent_id`, `source`, `conversation_state`, `chat_widget_state`, `chat_w
 
 #### `urlClick`
 
-Fired when the user clicks a product link.
+Fired when the user clicks a link in the chat: a product link, a link in a message, or See all results.
 
 **Action:** `url_click`
 
@@ -327,7 +329,7 @@ Fields: `agent_id`, `source`, `conversation_state`, `chat_widget_size`, `chat_co
 
 #### `closeMiniPdp`
 
-Fired when the mini PDP panel closes: the user closes it, or closes or minimizes the widget while it is open.
+Fired when the mini PDP panel closes.
 
 **Action:** `close_mini_pdp`
 
@@ -387,7 +389,7 @@ Fields: `agent_id`, `source`, `conversation_state`, `chat_widget_size`, `chat_co
 
 #### `thumbsUp` / `thumbsDown`
 
-Fired when the user reacts to a message with thumbs up or down.
+Fired when the user reacts to a message with thumbs up or down, and again when they add a comment to that reaction (then with `feedback_message`).
 
 **Action:** `thumbs_up` / `thumbs_down`
 
@@ -403,27 +405,27 @@ Fired when the feedback survey dialog is displayed.
 
 > Does **not** include `conversation_state`, `chat_widget_state`, `chat_widget_size`, or `chat_config`.
 
-Fields: `agent_id`, `component`, `component_template`
+Fields: `agent_id`, `source`, `component`, `component_template`
 
 ---
 
 #### `surveyClosed`
 
-Fired when the user closes the survey without submitting.
+Fired when the user closes the survey, also after submitting it.
 
 **Action:** `close_survey`
 
-Fields: `agent_id`
+Fields: `agent_id`, `source`
 
 ---
 
 #### `feedbackSubmitted`
 
-Fired when the user submits the survey feedback form.
+Fired when the user picks a survey score, and again when they submit a comment (then with `feedback_message`).
 
 **Action:** `submit_feedback`
 
-Fields: `agent_id`, `feedback_state`?, `feedback_message`?
+Fields: `agent_id`, `source`, `feedback_state`?, `feedback_message`?
 
 ---
 
@@ -445,7 +447,7 @@ Fired when a fatal error is logged.
 
 Fields: `agent_id`, `source`, `conversation_state`, `location`, `type`, `message` (truncated to 2000 chars), `chat_widget_state`?, `chat_widget_size`?, `chat_config`?, `latency`?, `agent_name`?
 
-> Errors reported while handling a chat response (`location` `'Back-end'`) carry the widget-state fields and `latency`. Errors caught in the widget itself (`location` `'FE:user_active'` \| `'FE:user_passive'` \| `'FE:chat_closed'` \| `'FE:app_error_boundary'` \| `'FE:error'`) carry none of them, and `conversation_state` may be an empty string.
+> Errors reported while handling a chat response (`location` `'Back-end'`) carry the widget-state fields and `latency`. Errors caught in the widget itself (`location` `'FE:user_active'` \| `'FE:user_passive'` \| `'FE:chat_closed'` \| `'FE:app_error_boundary'`) carry none of them, and `conversation_state` may be an empty string.
 
 ---
 
@@ -487,7 +489,7 @@ processingMessage?: (processing: boolean) => void
 
 #### `reloadStarted`
 
-Fired just before the widget reloads.
+Fired just before the chat is cleared (the clear-chat button or `delete_chat`).
 
 ```ts
 reloadStarted?: (a: HookParams) => void
@@ -513,7 +515,7 @@ Fields: `agent_id`, `source`, `text`?, `qrs`?
 
 #### `searchedProducts`
 
-Fired when [`ui.fn.hideSearchResultCarousels`](./widget-config.md#function-overrides) hands search results to the page, carrying the batches the widget suppressed.
+Fired when search results are handed to the page instead of rendering in the chat (see [`ui.fn.hideSearchResultCarousels`](./widget-config.md#function-overrides)), carrying those batches.
 
 ```ts
 searchedProducts?: (a: HookParams) => void
@@ -521,20 +523,20 @@ searchedProducts?: (a: HookParams) => void
 
 Fields: `agent_id`, `source`, `products_data`?, `from_history`?
 
-`products_data` — array of `{ rephrased_query?: string, result_source?: 'SEARCH' | 'SIMILAR_PRODUCTS' | 'SEARCH_AND_SIMILAR_PRODUCTS', data: CarouselItem[] }`. `result_source` is set when that batch originated from a search or a similar-products lookup — see [`ui.fn.hideSearchResultCarousels`](./widget-config.md#function-overrides), which decides per batch whether the `SEARCH` batches go to the host through this hook instead of rendering in the widget.
+`products_data` — array of `{ rephrased_query?: string, result_source: 'SEARCH', data: CarouselItem[] }`: only plain search batches are handed to the page.
 `from_history` — `true` when loaded from existing chat history.
 
 ---
 
 ### Property Reference
 
-All properties that can appear in the params object of a Clarity hook.
+The properties that can appear in the params object of an engagement hook.
 
 | Property | Type | Description | Hooks |
 |---|---|---|---|
 | `agent_id` | `string` | Persona ID | all |
-| `source` | `string` | Weblayer identifier (`"{weblayerId}::{weblayerName}"`) | all |
-| `conversation_state` | `string` | State of the conversation at the time of the event. Values: `'conversation'` (user active within last 10 min) \| `'idle'` (last user message over 10 min ago, or events exist but no user messages) \| `'initial_message'` (only the assistant's initial message, no user messages) \| `'welcome_message'` (assistant has replied beyond initial message, no user messages) \| `'home_screen'` (home screen mode, no messages) \| `'none'` (completely empty). Empty string on a `clarityError` caught in the widget itself | all engagement hooks except `initialized`, `surveyShow`, `surveyClosed`, `feedbackSubmitted` |
+| `source` | `string` | Weblayer identifier (`"{weblayerId}::{weblayerName}"`) | all (not passed to the engagement callbacks of a weblayer's `widget.hooks`; `event.detail` has it) |
+| `conversation_state` | `string` | State of the conversation at the time of the event. Values: `'conversation'` (user active within last 10 min) \| `'idle'` (last user message over 10 min ago, or events exist but no user messages) \| `'initial_message'` (only the assistant's initial message, no user messages) \| `'welcome_message'` (the agent's default greeting is showing instead of a configured initial message, no user messages) \| `'home_screen'` (home screen mode, no messages) \| `'none'` (completely empty). Can be an empty string on a `clarityError` caught in the widget itself | all engagement hooks except `initialized`, `surveyShow`, `surveyClosed`, `feedbackSubmitted` |
 | `chatId` | `string` | ID of the chat conversation (the tracked event also carries it as `chat_id`) | all engagement hooks except `initialized`, `surveyShow`, `surveyClosed`, `feedbackSubmitted`, and `clarityError` caught in the widget itself |
 | `chat_widget_state` | `string` | Visibility state of the widget: `'open'` \| `'bubble'` \| `'minimized'` | `reloaded`, `widgetShown`, `productMenuClick`, `clarityRespond`, `clarityRespondProduct`, `clarityRespondButton`, `externalAgentRespond`, `externalAgentRespondFailed`, `clarityWarning`, `clarityError` (`'Back-end'` only) |
 | `chat_widget_size` | `string` | Size of the open widget: `'large'` \| `'small'` \| `'full_screen'` \| `'half_screen'`. Only present when `chat_widget_state` is `'open'` | all engagement hooks except `initialized`, `surveyShow`, `surveyClosed`, `feedbackSubmitted`, and `clarityError` caught in the widget itself |
@@ -544,10 +546,11 @@ All properties that can appear in the params object of a Clarity hook.
 | `state` | `number` | Numeric code of the reload reason | `reloaded` |
 | `action` | `string` | Describes what triggered the event. `chatOpen`: `'expand_from_trigger'` \| `'expand_from_bubble'` \| `'expand_from_minimized'`; `chatClosed`: `'minimize_from_open'`; `badgeHidden`: `'close_chat_from_trigger'` \| `'close_chat_from_minimized'` \| `'close_chat_from_open_on_mobile'` \| `'minimize_from_open'` (close button with `ui.skipMinimize`) | `chatOpen`, `chatClosed`, `badgeHidden`, `widgetShown` |
 | `button_text` | `string` | Label of the button that triggered the event | `chatOpen`, `widgetShown`, `userRespond`, `userRespondProduct`, `clarityRespondButton` |
-| `button_payload` | `string` | JSON-encoded payload attached to the clicked button or quick reply (e.g. `target`, `source`, `productIds`, plus any merchant-defined fields). Serialized via `JSON.stringify` | `userRespond` |
+| `button_payload` | `string` | JSON-encoded payload attached to the clicked button or quick reply (e.g. `target`, `source`, `productIds`, plus any merchant-defined fields). Serialized via `JSON.stringify` | `userRespond`, `userRespondProduct` |
 | `chat_opened_from_trigger` | `string` | Name of the trigger banner that opened the chat | `chatOpen`, `widgetShown` |
 | `chat_opened_from_trigger_component` | `string` | Trigger component (e.g. trigger template) that opened the chat | `chatOpen`, `widgetShown` |
-| `clicked_in_trigger` | `string` | Trigger banner name associated with the chat session when the user responded | `userRespond` |
+| `clicked_in_trigger` | `string` | Trigger banner name associated with the chat session when the user responded | `userRespond`, `userRespondProduct` |
+| `product_names` | `string[]` | Titles of the products in `product_ids`. In the callback and `event.detail` only, not on the tracked event | `userRespond` |
 | `user_respond_source` | `string` | Trigger component (e.g. trigger template) that opened the chat for this response. Defaults to `'in_chat'` when the response did not originate from a trigger | `clarityRespond`, `clarityRespondProduct`, `clarityRespondButton` |
 | `component` | `string` | Component identifier. `'chat'` (`'ai_mode'` in AI Mode) for `widgetShown`, `'feedback_survey'` for `surveyShow` | `widgetShown`, `surveyShow` |
 | `component_template` | `string` | Component template version. `'chat_v1'`, `'ai_mode_v1'` or `'feedback_survey_v1'` | `widgetShown`, `surveyShow` |
@@ -599,7 +602,7 @@ All properties that can appear in the params object of a Clarity hook.
 | `error_message` | `string` | Why the exchange with an external agent failed. On `externalAgentRespondFailed`, the processing step that failed and the error type | `externalAgentRespond`, `externalAgentRespondFailed` |
 | `response_json` | `string` | JSON-encoded array of attachments from an external agent | `externalAgentRespond` |
 | `external_conversation_id` | `string` | Sierra's conversation ID; for a helpdesk hand-over (e.g. Zendesk), the chat's own ID | `externalAgentRespond`, `externalAgentRespondFailed` |
-| `location` | `string` | For `clarityWarning`/`clarityError`: origin of the warning or error — `'Back-end'` (raised while handling a chat response), `'Front-end'` (warning: injecting events failed), or where the widget caught it: `'FE:user_active'` \| `'FE:user_passive'` \| `'FE:chat_closed'` \| `'FE:app_error_boundary'` \| `'FE:error'`. For `addToCart`: where the click originated (`'product card'` \| `'miniPDP'` \| `'customized product card'` \| `'customized product carousel'` \| `'customized miniPDP'`) | `clarityWarning`, `clarityError`, `addToCart` |
+| `location` | `string` | For `clarityWarning`/`clarityError`: origin of the warning or error — `'Back-end'` (raised while handling a chat response), `'Front-end'` (warning: injecting events failed), or where the widget caught it: `'FE:user_active'` \| `'FE:user_passive'` \| `'FE:chat_closed'` \| `'FE:app_error_boundary'`. For `addToCart`: where the click originated (`'product card'` \| `'miniPDP'` \| `'customized product card'` \| `'customized product carousel'` \| `'customized miniPDP'`) | `clarityWarning`, `clarityError`, `addToCart` |
 
 ---
 
@@ -620,9 +623,9 @@ The **weblayer** trigger system (floating button, PDP/PLP embeds, search suggest
 | `suggestionsSearched` | _(none — not tracked)_ | Search-suggestion template starts a suggestion fetch |
 | `suggestionsRendered` | _(none — not tracked)_ | Suggestion items rendered |
 
-> Only `show`, `actualShow`, `clicked`, and `error` carry an analytics `action`. `initialized`, `closed`, `suggestionsSearched`, and `suggestionsRendered` exist as `CustomEvent`s and custom-hook callbacks (`config.trigger.hooks`) but are not forwarded to `track`.
+> Only `show`, `actualShow`, `clicked`, and `error` carry an analytics `action`. `initialized`, `suggestionsSearched`, and `suggestionsRendered` exist as `CustomEvent`s and custom-hook callbacks (`config.trigger.hooks`) but are not forwarded to `track`.
 
-**Default attributes** — the tracked event carries the [default attributes](./analytics-events.md#default-attributes) on top of the fields below. `event.detail` carries only `source`, `trigger_context_product_ids` (plus `trigger_context_product_ids_type` when set) and the hook-specific fields.
+**Default attributes** — the tracked event carries the [default attributes](./analytics-events.md#default-attributes) on top of the fields below. `event.detail` carries only `source`, `agent_id`, `trigger_context_product_ids` (plus `trigger_context_product_ids_type` when set) and the hook-specific fields.
 
 ### Trigger Hook Details
 
@@ -670,7 +673,7 @@ Fields: default attrs + `source`, `trigger_context_product_ids`, `location`, `me
 
 Not forwarded to analytics (no `action`). Fired by the search-suggestion template when a suggestion fetch starts (before results return). Dispatches `ClarityTrigger:suggestionsSearched` and invokes `config.trigger.hooks.suggestionsSearched`.
 
-Fields: default attrs + `source`, `trigger_context_product_ids`, `search_text`
+Fields: `source`, `agent_id`, `trigger_context_product_ids`, `search_text`
 
 ---
 
@@ -690,7 +693,7 @@ All properties that can appear in the params object of a trigger hook.
 | `agent_id` | `string` | Persona ID | all |
 | `chat_id` | `string` | ID of the chat conversation (`undefined` before the widget initializes) | tracked event only; `clicked` carries it in `event.detail` as `chatId` |
 | `component` | `string` | Component identifier | tracked event only |
-| `component_template` | `string` | Component template + version (e.g. `FLOATING_TRIGGER_v2`) | tracked event only |
+| `component_template` | `string` | Component template + version (e.g. `floating_trigger_v2`) | tracked event only |
 | `interaction` | `boolean` | Whether the event is user-initiated | tracked event only; `error` also carries it in `event.detail` (always `true`) |
 | `trigger_context_product_ids` | `string[]` | Product IDs extracted from the page by the trigger | all |
 | `trigger_context_product_ids_type` | `string` | Which kind of ID `trigger_context_product_ids` holds: `'product_id'` \| `'item_id'`. Only when the weblayer config sets it | all |

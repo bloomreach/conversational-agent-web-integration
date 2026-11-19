@@ -40,7 +40,7 @@ sees:
 While a live session is running, every message the shopper types goes straight to Zendesk and does
 not pass through Clarity.
 
-The shopper can end the session too, with the *End live support conversation* button the widget
+The shopper can end the session too, with the *End live agent chat* button the widget
 shows while connecting or connected. A message from the business side is then posted into the
 conversation telling the agent that the customer left — the wording is yours to choose, the default
 is "The customer has ended this chat." With the Support API OAuth client of
@@ -177,7 +177,7 @@ is created elsewhere and swapping it does not touch the webhook.
 
 Needed for two things:
 
-- the shopper's *End live support conversation* **solves the ticket** (with one conversation per
+- the shopper's *End live agent chat* **solves the ticket** (with one conversation per
   customer, once a human agent has replied in that live session), which ends the agent's messaging
   session through the trigger of
   [3.4](#34-control-must-return-to-your-ai-agent-when-the-human-agent-is-done);
@@ -212,7 +212,7 @@ conversation (*Release control*, [3.5](#35-messaging-settings)). The shopper see
 session has ended", and their next message routed to Zendesk goes to your AI agent: with one conversation
 per customer in the same Sunshine conversation, as a new session and a new ticket in the AI agent's queue;
 with one conversation per live phase in a new conversation and ticket. Until then the widget keeps
-showing the live agent, and every message the shopper sends lands in the human agent's ticket, even
+showing "Connected to a live agent", and every message the shopper sends lands in the human agent's ticket, even
 after it was solved.
 
 The usual way to return control is ending the ticket's **messaging session** ([About ending
@@ -224,7 +224,7 @@ yours runs the *Messaging session → End session* action, when *Capacity releas
 messaging session after conversation becomes inactive* is set up ([3.5](#35-messaging-settings))
 after 3–15 minutes without a message from the shopper, or when the ticket is closed; Zendesk's
 default automation closes a solved ticket after 4 days. *Submit as Solved* on its own does not end
-it. The shopper's *End live support conversation* solves the ticket (with one conversation per customer, after a human agent's reply)
+it. The shopper's *End live agent chat* solves the ticket (with one conversation per customer, after a human agent's reply)
 when the OAuth client of [3.3](#33-support-api-oauth-client--optional) is configured, so it too ends
 the session only through the trigger below.
 
@@ -252,7 +252,7 @@ Zendesk side ever reaches the shopper:
 
 - **Advanced → Ending sessions → *Agents can end messaging sessions at any time* must be on.** With
   it off, the session is still marked ended on the ticket, but the Agent Workspace does not
-  release the conversation and nothing reaches Clarity: the widget keeps showing the live agent, and
+  release the conversation and nothing reaches Clarity: the widget keeps showing "Connected to a live agent", and
   every further message of that shopper bypasses Clarity for your Zendesk AI agent. See [Allowing
   end users to end messaging
   sessions](https://support.zendesk.com/hc/en-us/articles/10046732687770-Allowing-end-users-to-end-messaging-sessions)
@@ -307,7 +307,7 @@ to read the answers.
 | End notice text | Optional. The message the agent gets when the shopper ends the chat; defaults to "The customer has ended this chat." | Posted into the conversation on your behalf; it is the agent's only notice that the customer left, so you may want it in your own words and language |
 | Topics | The list of conversation topics that belong to Zendesk | This list *is* the routing rule: a shopper message is handed over when the orchestrator judges it to fall inside one of these topics |
 
-Hand these to your Bloomreach customer success contact, who configures them on your Clarity agent.
+Hand these to your Bloomreach contact, who configures them on your Clarity agent.
 If any value is invalid, the hand-over is off
 entirely — messages do not go out and replies do not come back — rather than half-working. Share
 the secrets over a secure channel, not in a ticket or an email.
@@ -339,7 +339,7 @@ Buttons attached to a message are filtered too:
 Carousel card buttons support link navigation only, never quick replies — that is a limit of the
 Zendesk specification itself.
 
-> **Unsupported types are lost silently.** Zendesk shows the message as delivered while the shopper
+> **Unsupported content types are lost silently.** Zendesk shows the message as delivered while the shopper
 > sees nothing. Keep your AI agent's replies and your agents' macros to the supported types.
 
 ### Forms: how an answer reaches the ticket
@@ -356,11 +356,11 @@ in; a custom use case is only reached when its intent is matched.
 What the widget's *Send* does, for every form:
 
 1. the answers are written as **conversation metadata**, `{ <field name>: <value> }` — the same
-   place Web Messenger's own submission leaves them;
-2. a plain text message follows, `Label: value` per line, which is what fires the dialogue's *Free
-   text written* block and moves it on to the escalation;
-3. optionally, fields named `name`, `givenName` and `surname` also update the Sunshine user's profile
-   and, like `email`, the ticket's requester — see [How the name is written](#how-the-name-is-written) and
+   place Web Messenger's own submission leaves them — and fields named `name`, `givenName` and
+   `surname` update the Sunshine user's profile;
+2. then a plain text message follows, `Label: value` per line, which is what fires the dialogue's
+   *Free text written* block and moves it on to the escalation; alongside it, the name fields and
+   `email` update the ticket's requester — see [How the name is written](#how-the-name-is-written) and
    [How the email is written](#how-the-email-is-written).
 
 The answer does **not** arrive as a Sunshine `formResponse` (the Conversations API refuses that
@@ -456,7 +456,7 @@ window are lost for good.
 | Limit | What you will notice |
 |---|---|
 | Unsupported message types are lost silently | Zendesk shows the message as delivered, the shopper sees nothing — see [Supported message types](#5-supported-message-types) |
-| Without the OAuth client, the shopper's ending does not end the agent's session | Without the Support API OAuth client of [3.3](#33-support-api-oauth-client--optional), or with a client lacking the ticket scopes, or without the trigger of [3.4](#34-control-must-return-to-your-ai-agent-when-the-human-agent-is-done), or, with one conversation per customer, when the shopper ends before a human agent replied, the widget's *End live support conversation* ends the live phase for the shopper, but the agent's messaging session stays open until the agent ends it or, with the trigger in place, solves the ticket, and so does the ticket (with the client but without the trigger, it is already solved and only *End session* helps). With one conversation per customer the shopper's next message routed to Zendesk re-enters that conversation and lands in that ticket: after a human had replied, the human agent answers if they are still active on it, otherwise Zendesk's AI agent steps in — into the same ticket, which never moves to the AI agent's queue, and when it takes over is Zendesk's behaviour and not configurable; after an ending while still "Connecting", the message waits for your agents in that ticket ([For the shopper](#for-the-shopper)). With one conversation per live phase the next hand-off opens a new conversation and a new ticket instead, and without the client the old ticket merely stays open |
+| Without the OAuth client, the shopper's ending does not end the agent's session | Without the Support API OAuth client of [3.3](#33-support-api-oauth-client--optional), or with a client lacking the ticket scopes, or without the trigger of [3.4](#34-control-must-return-to-your-ai-agent-when-the-human-agent-is-done), or, with one conversation per customer, when the shopper ends before a human agent replied, the widget's *End live agent chat* ends the live phase for the shopper, but the agent's messaging session stays open until the agent ends it or, with the trigger in place, solves the ticket, and so does the ticket (with the client but without the trigger, it is already solved and only *End session* helps). With one conversation per customer the shopper's next message routed to Zendesk re-enters that conversation and lands in that ticket: after a human had replied, the human agent answers if they are still active on it, otherwise Zendesk's AI agent steps in — into the same ticket, which never moves to the AI agent's queue, and when it takes over is Zendesk's behaviour and not configurable; after an ending while still "Connecting", the message waits for your agents in that ticket ([For the shopper](#for-the-shopper)). With one conversation per live phase the next hand-off opens a new conversation and a new ticket instead, and without the client the old ticket merely stays open |
 | A human agent's messages after the ending are not delivered | Once a live phase has ended, whoever ended it, nothing Zendesk sends into the conversation reaches the shopper until their next message is handed over, and it is not delivered afterwards either. Your AI agent only answers the shopper's messages, so in practice what is lost is what a human agent sends after the ending: replies still typed into the ticket, or a later follow-up on it. A survey app's message is delivered when you name the app in [section 4](#4-what-to-hand-to-bloomreach), unless the shopper's next hand-off already opened a new conversation (one conversation per live phase); one sent minutes after the ending may appear only once the shopper returns to the page's tab, reloads the page, or sends a message that is handed over to Zendesk again. From the next hand-off on, replies arrive again, in the same Clarity chat and, with one conversation per customer, the same Sunshine conversation. When the shopper ended the chat, the end notice message tells the agent so; an ending on the Zendesk side posts nothing into the conversation |
 | No conversation across devices through the weblayer (one conversation per customer) | The id is kept per browser, so a shopper on another device starts another conversation and the agent sees one thread per browser. Only a standalone integration passing the same id on every device links them; two such devices used at once then end each other's live session with every message routed to Zendesk |
 | One thread per live phase (one conversation per live phase) | Every hand-off after an ending opens another ticket, and the agent sees several threads per customer. Without an OAuth client allowed the ticket scopes ([3.3](#33-support-api-oauth-client--optional)), each ending by the shopper also leaves the previous ticket open |
@@ -479,7 +479,7 @@ failure, with its time zone.
 | The webhook's delivery log shows `401 {"error":"invalid api key"}` | The `x-api-key` header does not match the secret Bloomreach has, or the target URL is not the one Bloomreach gave you. A wrong secret, a URL pointing at another project or agent, and an invalid configuration on the Bloomreach side all return exactly this response; a malformed URL returns 400 or 404 | Compare the header with the secret you handed over; after a rotation, check the order of [section 6](#6-rotating-the-webhook-secret). If both match, ask Bloomreach to check the configuration: which of the three causes applies shows only in Bloomreach's logs |
 | Shoppers' messages arrive in Zendesk, nothing comes back | The webhook is missing, disabled or not subscribed to the three events of [3.2](#32-webhook) | Check the integration's webhook and its event subscriptions. If they are correct, ask Bloomreach: the cause then shows only in Bloomreach's logs |
 | After the shopper ends a live chat, their next hand-off goes straight back to the human instead of the AI agent | Either the key is integration-scoped ([3.1](#31-conversations-api-key--app-scoped)), or the agent's messaging session is still open: no OAuth client is configured ([Known limits](#7-known-limits)), the client lacks `tickets:read` / `tickets:write`, the trigger of [3.4](#34-control-must-return-to-your-ai-agent-when-the-human-agent-is-done) is missing, or, with one conversation per customer, the shopper ended the chat while still "Connecting", before any human reply, in which case the ticket is left open on purpose ([For the shopper](#for-the-shopper)) | Check where the key was created, the client's scopes ([3.3](#33-support-api-oauth-client--optional)) and the trigger. If the shopper ended after a human reply and the ticket still shows open, a ticket field your account requires before a solve may have refused it: ask Bloomreach, the refusal shows only in Bloomreach's logs |
-| The agent ended the session or solved the ticket, but the widget still shows the live agent | *Agents can end messaging sessions at any time* is off, or the solve returned no control: the trigger of [3.4](#34-control-must-return-to-your-ai-agent-when-the-human-agent-is-done) is missing | Fix the setting or the trigger; meanwhile the shopper's only way out is the widget's own end button |
+| The agent ended the session or solved the ticket, but the widget still shows "Connected to a live agent" | *Agents can end messaging sessions at any time* is off, or the solve returned no control: the trigger of [3.4](#34-control-must-return-to-your-ai-agent-when-the-human-agent-is-done) is missing | Fix the setting or the trigger; meanwhile the shopper's only way out is the widget's own end button |
 | The solve created a new ticket that nobody answers | The account is on *Pass control* | Switch Conversation control to *Release control* ([3.5](#35-messaging-settings)) |
 | A shopper gets an error on every message routed to Zendesk | The Sunshine app refuses a second conversation for that user: Multi-Conversations is off while the mode or your own channels need it | Check Multi-Conversations on the Sunshine app ([3.6](#36-multi-conversations-on-the-sunshine-app)) and enable it, or switch to one conversation per customer. If it is already on, ask Bloomreach: the refusal Zendesk returns is visible only in Bloomreach's logs |
 | The shopper's first message after a hand-off gets only the AI agent's welcome reply; repeating it works | The message reached the conversation before your AI agent took it over; Zendesk's conversation log marks it *Not processed* | Ask Bloomreach to raise the AI agent takeover wait ([section 4](#4-what-to-hand-to-bloomreach)) |
@@ -487,7 +487,7 @@ failure, with its time zone.
 | The dialogue reads no value for one form field | The field's name is reserved, so its answer is not written to the conversation metadata | Rename the field ([Forms](#forms-how-an-answer-reaches-the-ticket)) |
 | The requester is named `User <id>` or the *Update user* action writes nothing | The *Update user* action references session parameters that the widget's submission does not produce | Add a *Get conversation* action reading `<Metadata>` in front of it |
 | The requester has no email after a form | No Support API OAuth client is configured, the address already belongs to another Support user, or a standalone integration sends no customer id | Configure the client ([3.3](#33-support-api-oauth-client--optional)); for an address held by another user, the agent can merge the profiles by hand; for a standalone integration, set `getCurrentCustomerId` |
-| A message shows as delivered in Zendesk but the shopper saw nothing | An unsupported content type or button type | Use the types of [section 5](#5-supported-message-types) |
+| A message shows as delivered in Zendesk but the shopper saw nothing | An unsupported content type | Use the types of [section 5](#5-supported-message-types) |
 | A human agent's message after the live chat ended never reached the shopper | Expected after any ending, by the shopper or by the agent: nothing the agent sends into the conversation reaches the shopper until their next hand-off, and it is not delivered then either ([Known limits](#7-known-limits)) | Nothing to recover. When the shopper ended the chat, the end notice told the agent; an ending on the Zendesk side posts nothing into the conversation. A follow-up that must reach the customer has to go another way |
 | A shopper on two devices sees the live session end on one of them | Expected with one conversation per customer when a standalone integration passes the same id on both devices: the other device took the conversation over | Nothing to do; see [the two modes](#one-conversation-per-customer-or-one-per-live-phase) |
 

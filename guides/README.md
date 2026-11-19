@@ -45,9 +45,10 @@ Engagement SDK on your page
 The weblayer carries the whole configuration: which trigger to show and where, the agent id, colours and texts,
 and the widget settings (`window.CLARITY_WEBLAYER_CONFIG`, see [`weblayer-config.md`](../reference/weblayer-config.md)).
 It writes the widget's own configuration, `window.CLARITY_CONFIG`
-([`widget-config.md`](../reference/widget-config.md)), for you. Bloomreach builds and maintains the weblayer, and
-its code is not published; ask your Bloomreach contact for any change to it, such as another trigger or
-different settings. In this setup your page is involved in four places:
+([`widget-config.md`](../reference/widget-config.md)), for you. Bloomreach builds and maintains the weblayer and
+the Conversational Agent tags in your Engagement project. You can see them there and could edit them, but ask your
+Bloomreach contact for any change, such as another trigger or different settings: Bloomreach keeps the weblayers
+and tags of your project consistent with each other. In this setup your page is involved in four places:
 
 | Your page provides | Where | Why |
 |---|---|---|
@@ -77,13 +78,15 @@ the bundle has loaded:
     setSource: (source) => { window.CLARITY_CONFIG.source = source },  // call it once CLARITY_CONFIG is set
   }
 
+  // keeps what other code of the page has already set, e.g. ui.component
   window.CLARITY_CONFIG = {
+    ...(window.CLARITY_CONFIG ?? {}),
     projectId: '<your Engagement project id>',
     personaId: '<your agent id>',
     defaultCurrency: 'EUR',
     getCurrentCustomerId: () => getShopperId(),
     getContext: () => ({ currentItemId: getProductId() }),
-    hooks: { version: 'WBL_BUNDLE' },   // required for the Clarity:* browser events
+    hooks: { ...window.CLARITY_CONFIG?.hooks, version: 'WBL_BUNDLE' },   // required for the Clarity:* browser events
   }
 
   const script = document.createElement('script')

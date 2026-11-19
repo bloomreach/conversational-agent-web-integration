@@ -94,14 +94,14 @@ The initial message bubble above the badge is `clarity-initial-message-container
 
 | # | Class | What it is |
 |---|---|---|
-| 1 | `clarity-menu-dropdown` | The header menu |
+| 1 | `clarity-menu-dropdown` | The header menu and the product card's menu |
 | 2 | `clarity-menu-item` | One entry of the menu |
 
 ### Triggers and the side panel
 
 The triggers (floating button, embedded questions, banners) use classes with the `cui-` prefix and the
-`--cui-param-*` CSS variables, both listed per template in [`styles.md`](../reference/styles.md#trigger-class-hierarchy).
-The variables come from the weblayer's parameters, which your Bloomreach contact sets. The side panel's page
+`--cui-param-*` CSS variables: the classes are listed per template in [`styles.md`](../reference/styles.md#trigger-class-hierarchy), the variables under [Trigger variables](../reference/styles.md#trigger-variables---cui-param-).
+Set the variables in your stylesheet, or ask your Bloomreach contact to set them in the weblayer. The side panel's page
 layout uses ids and classes with the `cocoaas-desktop-ai-mode-` prefix, see [Chapter 5](05-side-panel.md).
 
 ---
